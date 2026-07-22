@@ -8,7 +8,8 @@ import { type UserCredentials, STAGING_OTP } from '../fixtures/users';
  *  2. (Optional) Switch country if not GB
  *  3. Fill phone + password → click Login
  *  4. Enter 6-digit OTP → click Continue
- *  5. Accept Terms & Conditions if policy-acceptance page appears
+ *  5. (Optional) Select Account USD/EUR — Yacht Manager Admin only
+ *  6. Accept Terms & Conditions if policy-acceptance page appears
  *
  * Returns after the dashboard is loaded.
  */
@@ -30,14 +31,17 @@ export async function login(page: Page, user: UserCredentials, otp = STAGING_OTP
   await loginPage.fillOtp(otp);
   await loginPage.submitOtp();
 
+  // Select Account (USD/EUR) — appears for Yacht Manager Admin after 2FA
+  await loginPage.selectAccountIfPresent('usd');
+
   // Wait for navigation away from /user/login
   await page.waitForURL((url) => !url.pathname.startsWith('/user/login'), { timeout: 15_000 });
 
   // Handle policy-acceptance (first-time login only)
   await loginPage.acceptPolicyIfPresent();
 
-  // Wait for dashboard
-  await page.waitForURL((url) => url.pathname.startsWith('/dashboard'), { timeout: 15_000 });
+  // Wait for the role's landing page after login
+  await page.waitForURL((url) => url.pathname.startsWith(user.dashboardPath), { timeout: 15_000 });
 }
 
 /**

@@ -35,6 +35,17 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
 
+    // ── Tests that run as Yacht Admin with Card (dashboard card management) ────
+    {
+      name: 'yacht-admin-card',
+      testMatch: ['**/cards/dashboard-card.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/yacht-admin-card.json',
+      },
+      dependencies: ['setup'],
+    },
+
     // ── Tests that run as Yacht Admin ───────────────────────────────────────
     {
       name: 'yacht-admin',
