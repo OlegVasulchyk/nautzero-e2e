@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Playwright output
+playwright-report/
+test-results/
+dist/
+
+# Environment — NEVER commit real credentials
+.env
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
