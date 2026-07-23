@@ -23,12 +23,46 @@ const SHIPPING = {
   postcode: 'S18 2GH',
 };
 
-/** Expand the first cardholder row and return once card action buttons are visible */
-async function expandFirstCardholder(page: Page): Promise<void> {
+/**
+ * Expand the first cardholder that has an ACTIVE card and leave its row open.
+ * Cancelled cards render a disabled "Freeze unavailable for this card" button, so we
+ * look for an enabled exact-"Freeze" (active) or "Unfreeze" (frozen) action instead.
+ */
+async function expandActiveCardholder(page: Page, opts: { requireReplace?: boolean } = {}): Promise<void> {
   await page.goto('/cardholders');
   await expect(page.getByRole('heading', { name: 'Cardholders' })).toBeVisible();
-  await page.getByRole('button', { name: /Expand details for/ }).first().click();
-  await expect(page.getByRole('button', { name: 'Freeze' }).first()).toBeVisible({ timeout: 8_000 });
+
+  // Wait for the cardholder rows to finish loading (skeleton → real rows)
+  await page.getByRole('button', { name: /Expand details for/ }).first().waitFor({ state: 'visible', timeout: 20_000 });
+
+  const total = await page.getByRole('button', { name: /Expand details for/ }).count();
+  for (let i = 0; i < total; i++) {
+    // All rows collapsed at the top of each iteration → indices are stable
+    await page.getByRole('button', { name: /Expand details for/ }).nth(i).click();
+
+    // A card is actionable only when Freeze (active) or Unfreeze (frozen) is present
+    // AND enabled. Cancelled/deleted cards render these buttons disabled (or with an
+    // "…unavailable…" label), so we must check enabled state, not just presence.
+    const freeze   = page.getByRole('button', { name: 'Freeze', exact: true }).first();
+    const unfreeze = page.getByRole('button', { name: 'Unfreeze', exact: true }).first();
+    const freezeActive   = (await freeze.count()) > 0 && (await freeze.isEnabled());
+    const unfreezeActive = (await unfreeze.count()) > 0 && (await unfreeze.isEnabled());
+    let ok = freezeActive || unfreezeActive;
+
+    // Replace is blocked for 14 days after a replacement — require it enabled when asked
+    if (ok && opts.requireReplace) {
+      const replace = page.getByRole('button', { name: 'Replace', exact: true }).first();
+      ok = (await replace.count()) > 0 && (await replace.isEnabled());
+    }
+
+    if (ok) {
+      return; // found a suitable card — leave this row expanded
+    }
+
+    // Not suitable → collapse and try the next row
+    await page.getByRole('button', { name: /Collapse details for/ }).click();
+  }
+  throw new Error('No cardholder with a suitable active card found on this page');
 }
 
 // ── TC-036: Freeze / Unfreeze ─────────────────────────────────────────────────
@@ -36,39 +70,35 @@ test.describe('TC-036 | Freeze / Unfreeze cardholder card', () => {
   test.setTimeout(60_000);
 
   test('TC-036 | Freezes and unfreezes a cardholder card from Cardholders page', async ({ page }) => {
-    await page.goto('/cardholders');
-    await expect(page.getByRole('heading', { name: 'Cardholders' })).toBeVisible();
-    await page.getByRole('button', { name: /Expand details for/ }).first().click();
+    await expandActiveCardholder(page);
 
     // Normalize state → if the card is currently frozen, unfreeze it first so we
     // always start from Active (test must not depend on initial card state)
-    const preUnfreeze = page.getByRole('button', { name: 'Unfreeze' }).first();
+    const preUnfreeze = page.getByRole('button', { name: 'Unfreeze', exact: true }).first();
     if (await preUnfreeze.isVisible()) {
       await preUnfreeze.click();
       await expect(page.getByRole('heading', { name: 'Unfreeze Card' })).toBeVisible({ timeout: 10_000 });
       await page.getByRole('button', { name: 'Yes' }).click();
-      await expect(page.getByRole('button', { name: 'Freeze' }).first()).toBeVisible({ timeout: 15_000 });
-    } else {
-      await expect(page.getByRole('button', { name: 'Freeze' }).first()).toBeVisible({ timeout: 8_000 });
+      await expect(page.getByRole('button', { name: 'Freeze', exact: true }).first()).toBeVisible({ timeout: 15_000 });
     }
 
     // ── Freeze ──────────────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Freeze' }).first().click();
+    await page.getByRole('button', { name: 'Freeze', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Freeze Card' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Are you sure you want to freeze this card?')).toBeVisible();
     await page.getByRole('button', { name: 'Yes' }).click();
 
     // Freeze button changes to Unfreeze
-    await expect(page.getByRole('button', { name: 'Unfreeze' }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Unfreeze', exact: true }).first()).toBeVisible({ timeout: 15_000 });
 
     // ── Unfreeze ─────────────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Unfreeze' }).first().click();
+    await page.getByRole('button', { name: 'Unfreeze', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Unfreeze Card' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Are you sure you want to reactivate this card?')).toBeVisible();
     await page.getByRole('button', { name: 'Yes' }).click();
 
     // Unfreeze button changes back to Freeze
-    await expect(page.getByRole('button', { name: 'Freeze' }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Freeze', exact: true }).first()).toBeVisible({ timeout: 15_000 });
   });
 
 });
@@ -80,10 +110,10 @@ test.describe('TC-037 | Replace cardholder card', () => {
   // NOTE: replacement can only be requested once every 14 days per card.
 
   test('TC-037 | Replaces a cardholder physical card and provides shipping address', async ({ page }) => {
-    await expandFirstCardholder(page);
+    await expandActiveCardholder(page, { requireReplace: true });
 
     // ── Confirm replace ──────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Replace' }).first().click();
+    await page.getByRole('button', { name: 'Replace', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Replace Card' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Are you sure you want to replace this card?')).toBeVisible();
     await page.getByRole('button', { name: 'Yes' }).click();
@@ -114,10 +144,10 @@ test.describe('TC-038 | Cancel cardholder card', () => {
   test.setTimeout(60_000);
 
   test('TC-038 | Cancels a cardholder card with confirmation', async ({ page }) => {
-    await expandFirstCardholder(page);
+    await expandActiveCardholder(page);
 
     // ── Cancel ───────────────────────────────────────────────────────────────
-    await page.getByRole('button', { name: 'Cancel' }).first().click();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Cancel Card' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Are you sure you want to cancel this card?')).toBeVisible();
     await page.getByRole('button', { name: 'Yes' }).click();
@@ -151,21 +181,17 @@ async function getRemainingBalance(page: Page): Promise<number> {
   });
 }
 
-/** Expand the first cardholder, ensure its card is active, and open the Edit form */
+/** Open the Edit form of the first cardholder that has an active card */
 async function openFirstCardholderEdit(page: Page): Promise<void> {
-  await page.goto('/cardholders');
-  await expect(page.getByRole('heading', { name: 'Cardholders' })).toBeVisible();
-  await page.getByRole('button', { name: /Expand details for/ }).first().click();
+  await expandActiveCardholder(page);
 
-  // Card must be active — if frozen, unfreeze first
-  const preUnfreeze = page.getByRole('button', { name: 'Unfreeze' }).first();
+  // If frozen, unfreeze first so we edit an active card
+  const preUnfreeze = page.getByRole('button', { name: 'Unfreeze', exact: true }).first();
   if (await preUnfreeze.isVisible()) {
     await preUnfreeze.click();
     await expect(page.getByRole('heading', { name: 'Unfreeze Card' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Yes' }).click();
-    await expect(page.getByRole('button', { name: 'Freeze' }).first()).toBeVisible({ timeout: 15_000 });
-  } else {
-    await expect(page.getByRole('button', { name: 'Freeze' }).first()).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole('button', { name: 'Freeze', exact: true }).first()).toBeVisible({ timeout: 15_000 });
   }
 
   await page.getByRole('button', { name: 'Edit' }).first().click();

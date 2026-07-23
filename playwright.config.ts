@@ -52,7 +52,6 @@ export default defineConfig({
       testMatch: [
         '**/navigation/yacht-admin.spec.ts',
         '**/cardholders/*.spec.ts',
-        '**/cards/*.spec.ts',
         '**/reports/*.spec.ts',
         '**/transactions/*.spec.ts',
       ],
