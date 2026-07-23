@@ -28,7 +28,22 @@ const SHIPPING = {
  * Cancelled cards render a disabled "Freeze unavailable for this card" button, so we
  * look for an enabled exact-"Freeze" (active) or "Unfreeze" (frozen) action instead.
  */
-async function expandActiveCardholder(page: Page, opts: { requireReplace?: boolean } = {}): Promise<void> {
+/** Whether the currently expanded row's leading icon is a Physical card (vs Virtual). */
+async function expandedRowIsPhysical(page: Page): Promise<boolean> {
+  return await page.evaluate(() => {
+    const collapse = document.querySelector('button[aria-label^="Collapse details for"]');
+    const row = collapse?.closest('tr') ?? collapse?.closest('[role="row"]');
+    const img = row?.querySelector('td img, [role="cell"] img') as HTMLImageElement | null;
+    const src = decodeURIComponent(img?.getAttribute('src') ?? '');
+    // Physical card icon renders at 31×25; the virtual (cloud) icon renders at 30×22
+    return /width='31'/.test(src) && /height='25'/.test(src);
+  });
+}
+
+async function expandActiveCardholder(
+  page: Page,
+  opts: { requireReplace?: boolean; requirePhysical?: boolean } = {}
+): Promise<void> {
   await page.goto('/cardholders');
   await expect(page.getByRole('heading', { name: 'Cardholders' })).toBeVisible();
 
@@ -53,6 +68,12 @@ async function expandActiveCardholder(page: Page, opts: { requireReplace?: boole
     if (ok && opts.requireReplace) {
       const replace = page.getByRole('button', { name: 'Replace', exact: true }).first();
       ok = (await replace.count()) > 0 && (await replace.isEnabled());
+    }
+
+    // Only physical cards show the shipping-address form on replace (virtual replaces
+    // instantly), so the replace test must land on a physical card.
+    if (ok && opts.requirePhysical) {
+      ok = await expandedRowIsPhysical(page);
     }
 
     if (ok) {
@@ -110,7 +131,7 @@ test.describe('TC-037 | Replace cardholder card', () => {
   // NOTE: replacement can only be requested once every 14 days per card.
 
   test('TC-037 | Replaces a cardholder physical card and provides shipping address', async ({ page }) => {
-    await expandActiveCardholder(page, { requireReplace: true });
+    await expandActiveCardholder(page, { requireReplace: true, requirePhysical: true });
 
     // ── Confirm replace ──────────────────────────────────────────────────────
     await page.getByRole('button', { name: 'Replace', exact: true }).first().click();
