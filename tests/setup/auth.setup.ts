@@ -18,6 +18,11 @@ setup('authenticate as Cardholder', async ({ page }) => {
   await page.context().storageState({ path: '.auth/cardholder.json' });
 });
 
+setup('authenticate as Yacht Admin with Card', async ({ page }) => {
+  await login(page, USERS['yacht-admin-card']);
+  await page.context().storageState({ path: '.auth/yacht-admin-card.json' });
+});
+
 setup('authenticate as Yacht Manager Admin', async ({ page }) => {
   await login(page, USERS['yacht-manager-admin']);
   await page.context().storageState({ path: '.auth/yacht-manager-admin.json' });

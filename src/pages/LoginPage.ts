@@ -3,10 +3,11 @@ import { type Page, type Locator } from '@playwright/test';
 /**
  * Page Object for NautZero login flow.
  *
- * Covers three screens:
- *  1. /user/login          — phone + password form
- *  2. /user/login (2FA)    — 6-digit OTP form
- *  3. /user/policy-acceptance — Terms & Conditions (shown on first login)
+ * Covers four screens:
+ *  1. /user/login              — phone + password form
+ *  2. /user/login (2FA)        — 6-digit OTP form
+ *  3. /user/login (account)    — Select Account (USD / EUR) — Yacht Manager Admin only
+ *  4. /user/policy-acceptance  — Terms & Conditions (shown on first login)
  */
 export class LoginPage {
   readonly page: Page;
@@ -23,9 +24,18 @@ export class LoginPage {
   readonly otpDigits: Locator[];
   readonly otpContinueButton: Locator;
 
-  // ── Policy acceptance ───────────────────────────────────────────────────
+  // ── Account selection (Yacht Manager Admin only) ────────────────────────
+  readonly accountHeading: Locator;
+  readonly usdAccountRadio: Locator;
+  readonly eurAccountRadio: Locator;
+  readonly accountLoginButton: Locator;
+
+  // ── Policy acceptance ────────────────────────────────────────────────────
   readonly termsCheckbox: Locator;
   readonly policyContinueButton: Locator;
+
+  // ── Resend OTP ───────────────────────────────────────────────────────────
+  readonly resendOtpButton: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -44,9 +54,18 @@ export class LoginPage {
     );
     this.otpContinueButton = page.locator('button[type="submit"]').filter({ hasText: 'Continue' });
 
+    // Account selection (Yacht Manager Admin — shown after 2FA)
+    this.accountHeading     = page.getByRole('heading', { name: 'Select Your Account' });
+    this.usdAccountRadio    = page.locator('#account-select-usd');
+    this.eurAccountRadio    = page.locator('#account-select-eur');
+    this.accountLoginButton = page.locator('button[type="submit"]').filter({ hasText: 'Log In' });
+
     // Policy acceptance
     this.termsCheckbox        = page.locator('input[type="checkbox"]');
     this.policyContinueButton = page.locator('button[type="submit"]').filter({ hasText: 'Continue' });
+
+    // Resend OTP (present on both login 2FA and reset password 2FA screens)
+    this.resendOtpButton = page.getByRole('button', { name: "Didn't get your code?" });
   }
 
   async goto() {
@@ -95,6 +114,26 @@ export class LoginPage {
 
   async submitOtp() {
     await this.otpContinueButton.click();
+  }
+
+  /**
+   * Select account currency (USD or EUR) — Yacht Manager Admin only.
+   * Appears after 2FA on the same /user/login URL.
+   * Waits up to 5s for the screen to appear; silently skips if it doesn't.
+   * @param currency 'usd' | 'eur' — defaults to 'usd'
+   */
+  async selectAccountIfPresent(currency: 'usd' | 'eur' = 'usd') {
+    try {
+      await this.accountHeading.waitFor({ state: 'visible', timeout: 5_000 });
+      if (currency === 'eur') {
+        await this.eurAccountRadio.check();
+      } else {
+        await this.usdAccountRadio.check();
+      }
+      await this.accountLoginButton.click();
+    } catch {
+      // Account selection screen not present for this role — skip
+    }
   }
 
   /**

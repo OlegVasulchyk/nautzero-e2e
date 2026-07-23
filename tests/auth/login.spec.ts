@@ -85,14 +85,18 @@ test.describe('Login', () => {
     await loginPage.fillOtp(STAGING_OTP);
     await loginPage.submitOtp();
 
+    // Account selection (USD/EUR) — specific to Yacht Manager Admin
+    await loginPage.selectAccountIfPresent('usd');
+
     await page.waitForURL((url) => !url.pathname.startsWith('/user/login'), { timeout: 15_000 });
     await loginPage.acceptPolicyIfPresent();
 
-    await page.waitForURL((url) => url.pathname.startsWith('/dashboard'), { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/dashboard/);
+    // Yacht Manager Admin lands on /fleet after login
+    await page.waitForURL((url) => url.pathname.startsWith('/fleet'), { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/fleet/);
 
     // Assert Yacht Manager Admin-specific nav
-    // Fleet is accessible via Settings; Finance items limited
+    await expect(page.locator('a[title="Fleet"]')).toBeVisible();
     await expect(page.locator('a[title="Settings"]')).toBeVisible();
   });
 });
@@ -113,9 +117,7 @@ test.describe('Login — negative cases', () => {
 
     // Should stay on login page and show an error
     await expect(page).toHaveURL(/\/user\/login/);
-    await expect(
-      page.locator('text=/invalid|incorrect|wrong|error/i').first()
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
   });
 
   test('Shows error on wrong OTP', async ({ page }) => {
@@ -131,10 +133,54 @@ test.describe('Login — negative cases', () => {
     await loginPage.submitOtp();
 
     // Should show error and stay on login / 2FA screen
-    await expect(
-      page.locator('text=/invalid|incorrect|wrong|expired|error/i').first()
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
   });
+
+  test('Shows error when submitting empty form', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await loginPage.clickLogin();
+
+    await expect(page).toHaveURL(/\/user\/login/);
+    await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
+  });
+
+  test('Shows error when password is empty', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await loginPage.fillPhone(USERS['yacht-admin'].phone);
+    await loginPage.clickLogin();
+
+    await expect(page).toHaveURL(/\/user\/login/);
+    await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
+  });
+
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Login — 2FA OTP resend
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe('Login — 2FA', () => {
+
+  test('2FA: "Didn\'t get your code?" resend button works', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+
+    await loginPage.fillPhone(USERS['yacht-admin'].phone);
+    await loginPage.fillPassword(USERS['yacht-admin'].password);
+    await loginPage.clickLogin();
+
+    await expect(loginPage.otpHeading).toBeVisible({ timeout: 10_000 });
+
+    // Resend button is visible and clickable
+    await expect(loginPage.resendOtpButton).toBeVisible();
+    await loginPage.resendOtpButton.click();
+
+    // Should remain on 2FA screen after resend
+    await expect(loginPage.otpHeading).toBeVisible();
+  });
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
