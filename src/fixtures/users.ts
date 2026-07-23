@@ -1,7 +1,13 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-export type UserRole = 'yacht-admin' | 'cardholder' | 'yacht-manager-admin' | 'yacht-admin-card';
+export type UserRole =
+  | 'yacht-admin'
+  | 'cardholder'
+  | 'yacht-manager-admin'
+  | 'yacht-admin-card'
+  | 'cardholder-physical'
+  | 'cardholder-virtual';
 
 export interface UserCredentials {
   phone: string;
@@ -31,6 +37,20 @@ export const USERS: Record<UserRole, UserCredentials> = {
     phone:         process.env.YACHT_ADMIN_CARD_PHONE    ?? '7771777139',
     password:      process.env.YACHT_ADMIN_CARD_PASSWORD ?? '',
     role:          'yacht-admin-card',
+    dashboardPath: '/dashboard',
+  },
+  // Cardholder who owns a PHYSICAL card (dashboard: View PIN, Freeze/Unfreeze, View card details)
+  'cardholder-physical': {
+    phone:         process.env.CARDHOLDER_PHYSICAL_PHONE    ?? '7745630803',
+    password:      process.env.CARDHOLDER_PHYSICAL_PASSWORD ?? '',
+    role:          'cardholder-physical',
+    dashboardPath: '/dashboard',
+  },
+  // Cardholder who owns a VIRTUAL card (dashboard: Freeze/Unfreeze, View card details — no PIN)
+  'cardholder-virtual': {
+    phone:         process.env.CARDHOLDER_VIRTUAL_PHONE    ?? '7788228399',
+    password:      process.env.CARDHOLDER_VIRTUAL_PASSWORD ?? '',
+    role:          'cardholder-virtual',
     dashboardPath: '/dashboard',
   },
   'yacht-manager-admin': {
