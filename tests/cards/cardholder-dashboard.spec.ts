@@ -7,9 +7,13 @@ import { STAGING_OTP } from '../../src/fixtures/users';
 // TC-065  Cardholder (Virtual card) — Dashboard actions:
 //         Unfreeze, Freeze, View Card Details  (virtual cards have no PIN)
 //
-// Auth: cardholder-physical / cardholder-virtual storageState.
-// The describe titles contain "Physical" / "Virtual"; the config projects use
-// `grep` to run each describe under the matching cardholder account.
+// Card state drives availability (read from the "Status:" value in the widget):
+//   • Status: Active  → Freeze / PIN / View Card Details are available
+//   • Status: Frozen  → only Unfreeze is available; unfreeze first, then proceed
+//
+// Auth: cardholder-physical / cardholder-virtual storageState. The describe titles
+// contain "Physical" / "Virtual"; config projects use `grep` to run each under the
+// matching cardholder account.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Enter the static staging OTP into the 6 single-digit inputs and submit. */
@@ -30,38 +34,70 @@ async function closeModal(page: Page): Promise<void> {
   }
 }
 
-/** Freeze then unfreeze the card, leaving it Active. State-independent. */
-async function freezeUnfreezeCycle(page: Page): Promise<void> {
-  // Normalize to Active (unfreeze if currently frozen)
-  const unfreeze = page.getByRole('button', { name: 'Unfreeze', exact: true });
-  if (await unfreeze.isVisible().catch(() => false)) {
-    await unfreeze.click();
+/**
+ * Ensure the card is Active. If Status shows "Frozen" (only Unfreeze available),
+ * unfreeze it first so Freeze / PIN / View Card Details become available.
+ */
+async function ensureCardActive(page: Page): Promise<void> {
+  if (await page.getByText('Frozen', { exact: true }).isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: 'Unfreeze', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Unfreeze Card' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Yes' }).click();
-    await expect(page.getByRole('button', { name: 'Freeze', exact: true })).toBeVisible({ timeout: 15_000 });
   }
+  await expect(page.getByText('Active', { exact: true })).toBeVisible({ timeout: 15_000 });
+}
 
-  // Freeze
+/** Freeze an active card, then unfreeze it back to Active. Each step is confirmed by
+ *  its SUCCESS notification before the test is considered passed. */
+async function freezeThenUnfreeze(page: Page): Promise<void> {
+  await ensureCardActive(page);
+
+  // Freeze → success toast + Status becomes Frozen
   await page.getByRole('button', { name: 'Freeze', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Freeze Card' })).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: 'Yes' }).click();
-  await expect(page.getByRole('button', { name: 'Unfreeze', exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('The card you have selected is now frozen.').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Frozen', { exact: true })).toBeVisible({ timeout: 15_000 });
 
-  // Unfreeze
+  // Unfreeze → success toast + Status back to Active
   await page.getByRole('button', { name: 'Unfreeze', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Unfreeze Card' })).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: 'Yes' }).click();
-  await expect(page.getByRole('button', { name: 'Freeze', exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('The card you have selected is now active.').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Active', { exact: true })).toBeVisible({ timeout: 15_000 });
 }
 
-/** Open "View Card Details", pass 2FA, assert the secure reveal modal, close it. */
+/** Open "View Card Details" (card must be Active), pass 2FA, assert reveal, close. */
 async function viewCardDetails(page: Page): Promise<void> {
+  await ensureCardActive(page);
   await page.getByRole('button', { name: 'View Card Details' }).click();
   await expect(page.getByRole('heading', { name: 'Verify Your Identity to View Your Full Card Details' })).toBeVisible({ timeout: 10_000 });
   await pass2FA(page);
   await expect(page.getByRole('heading', { name: "Here's Your Full Card Details" })).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('iframe[src*="airwallex.com"][src*="/details"]')).toBeAttached();
+  // Wait until the secure Airwallex iframe has actually rendered the card data
+  const detailsFrame = page.frameLocator('iframe[src*="airwallex.com"][src*="/details"]');
+  await expect(detailsFrame.locator('body')).toContainText(/\d/, { timeout: 20_000 });
   await closeModal(page);
+}
+
+/** Open "PIN" (card must be Active), pass 2FA, assert reveal, close. */
+async function viewPin(page: Page): Promise<void> {
+  await ensureCardActive(page);
+  await page.getByRole('button', { name: 'PIN', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Verify Your Identity to View Your PIN' })).toBeVisible({ timeout: 10_000 });
+  await pass2FA(page);
+  await expect(page.getByRole('heading', { name: "Here's Your PIN" })).toBeVisible({ timeout: 15_000 });
+  // Wait until the secure Airwallex iframe has actually rendered the PIN digits
+  const pinFrame = page.frameLocator('iframe[src*="airwallex.com"][src*="/pin"]');
+  await expect(pinFrame.locator('body')).toContainText(/\d/, { timeout: 20_000 });
+  await closeModal(page);
+}
+
+/** Wait for the cardholder dashboard card widget to load. */
+async function gotoCardWidget(page: Page): Promise<void> {
+  await page.goto('/dashboard');
+  // Cardholder card widget has no "My Card:" label — it shows "Available Cardholder Balance:"
+  await expect(page.getByText('Available Cardholder Balance:', { exact: false })).toBeVisible({ timeout: 15_000 });
 }
 
 // ── TC-064: Physical card cardholder ────────────────────────────────────────────
@@ -69,21 +105,10 @@ test.describe('TC-064 | Cardholder Physical card — dashboard actions', () => {
   test.setTimeout(90_000);
 
   test('TC-064 | Physical: View PIN, Freeze/Unfreeze, View Card Details', async ({ page }) => {
-    await page.goto('/dashboard');
-    await expect(page.getByText('My Card:', { exact: false })).toBeVisible({ timeout: 15_000 });
+    await gotoCardWidget(page);
 
-    // ── View PIN (physical cards only) ───────────────────────────────────────
-    await page.getByRole('button', { name: 'PIN', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Verify Your Identity to View Your PIN' })).toBeVisible({ timeout: 10_000 });
-    await pass2FA(page);
-    await expect(page.getByRole('heading', { name: "Here's Your PIN" })).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('iframe[src*="airwallex.com"][src*="/pin"]')).toBeAttached();
-    await closeModal(page);
-
-    // ── Freeze / Unfreeze ────────────────────────────────────────────────────
-    await freezeUnfreezeCycle(page);
-
-    // ── View Card Details ────────────────────────────────────────────────────
+    await viewPin(page);          // physical cards expose a PIN
+    await freezeThenUnfreeze(page);
     await viewCardDetails(page);
   });
 
@@ -94,13 +119,9 @@ test.describe('TC-065 | Cardholder Virtual card — dashboard actions', () => {
   test.setTimeout(90_000);
 
   test('TC-065 | Virtual: Freeze/Unfreeze, View Card Details', async ({ page }) => {
-    await page.goto('/dashboard');
-    await expect(page.getByText('My Card:', { exact: false })).toBeVisible({ timeout: 15_000 });
+    await gotoCardWidget(page);
 
-    // ── Freeze / Unfreeze ────────────────────────────────────────────────────
-    await freezeUnfreezeCycle(page);
-
-    // ── View Card Details ────────────────────────────────────────────────────
+    await freezeThenUnfreeze(page);
     await viewCardDetails(page);
   });
 

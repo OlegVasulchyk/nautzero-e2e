@@ -24,12 +24,12 @@ export default defineConfig({
   projects: [
     // ── Per-role setup: each logs in ONE user, tagged so test projects can
     //    depend only on the role they need (running one project = one login) ──
-    { name: 'setup:yacht-admin',          testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-admin\b/ },
-    { name: 'setup:cardholder',           testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder\b/ },
-    { name: 'setup:yacht-admin-card',     testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-admin-card\b/ },
-    { name: 'setup:cardholder-physical',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-physical\b/ },
-    { name: 'setup:cardholder-virtual',   testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-virtual\b/ },
-    { name: 'setup:yacht-manager-admin',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-manager-admin\b/ },
+    { name: 'setup:yacht-admin',          testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-admin$/ },
+    { name: 'setup:cardholder',           testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder$/ },
+    { name: 'setup:yacht-admin-card',     testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-admin-card$/ },
+    { name: 'setup:cardholder-physical',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-physical$/ },
+    { name: 'setup:cardholder-virtual',   testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-virtual$/ },
+    { name: 'setup:yacht-manager-admin',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-manager-admin$/ },
 
     // ── Auth tests: login flow itself (no saved state needed) ───────────────
     {
