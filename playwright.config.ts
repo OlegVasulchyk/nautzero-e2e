@@ -22,11 +22,14 @@ export default defineConfig({
   },
 
   projects: [
-    // ── Setup: login once per role, save storage state to .auth/ ───────────
-    {
-      name: 'setup',
-      testMatch: '**/setup/auth.setup.ts',
-    },
+    // ── Per-role setup: each logs in ONE user, tagged so test projects can
+    //    depend only on the role they need (running one project = one login) ──
+    { name: 'setup:yacht-admin',          testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-admin\b/ },
+    { name: 'setup:cardholder',           testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder\b/ },
+    { name: 'setup:yacht-admin-card',     testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-admin-card\b/ },
+    { name: 'setup:cardholder-physical',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-physical\b/ },
+    { name: 'setup:cardholder-virtual',   testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-virtual\b/ },
+    { name: 'setup:yacht-manager-admin',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-manager-admin\b/ },
 
     // ── Auth tests: login flow itself (no saved state needed) ───────────────
     {
@@ -43,7 +46,31 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: '.auth/yacht-admin-card.json',
       },
-      dependencies: ['setup'],
+      dependencies: ['setup:yacht-admin-card'],
+    },
+
+    // ── Cardholder with a Physical card (own dashboard card actions) ──────────
+    {
+      name: 'cardholder-physical',
+      testMatch: ['**/cards/cardholder-dashboard.spec.ts'],
+      grep: /Physical/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/cardholder-physical.json',
+      },
+      dependencies: ['setup:cardholder-physical'],
+    },
+
+    // ── Cardholder with a Virtual card (own dashboard card actions) ───────────
+    {
+      name: 'cardholder-virtual',
+      testMatch: ['**/cards/cardholder-dashboard.spec.ts'],
+      grep: /Virtual/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/cardholder-virtual.json',
+      },
+      dependencies: ['setup:cardholder-virtual'],
     },
 
     // ── Tests that run as Yacht Admin ───────────────────────────────────────
@@ -59,7 +86,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: '.auth/yacht-admin.json',
       },
-      dependencies: ['setup'],
+      dependencies: ['setup:yacht-admin'],
     },
 
     // ── Tests that run as Cardholder ────────────────────────────────────────
@@ -70,7 +97,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: '.auth/cardholder.json',
       },
-      dependencies: ['setup'],
+      dependencies: ['setup:cardholder'],
     },
 
     // ── Tests that run as Yacht Manager Admin ───────────────────────────────
@@ -81,7 +108,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: '.auth/yacht-manager-admin.json',
       },
-      dependencies: ['setup'],
+      dependencies: ['setup:yacht-manager-admin'],
     },
   ],
 });
