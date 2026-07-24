@@ -32,7 +32,7 @@ export async function login(page: Page, user: UserCredentials, otp = STAGING_OTP
   await loginPage.submitOtp();
 
   // Select Account (USD/EUR) — appears for Yacht Manager Admin after 2FA
-  await loginPage.selectAccountIfPresent('usd');
+  await loginPage.selectAccountIfPresent(user.accountCurrency ?? 'usd');
 
   // Wait for navigation away from /user/login
   await page.waitForURL((url) => !url.pathname.startsWith('/user/login'), { timeout: 15_000 });

@@ -26,6 +26,20 @@ function randPhone() {
 const MONTHS   = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const WARCRAFT = ['Arthas','Thrall','Jaina','Sylvanas','Illidan','Varian','Garrosh','Anduin','Guldan','Khadgar'];
 
+// No digits — a name with digits later blocks card/cardholder actions at
+// Airwallex's name validation. Suffixed with a random tag to keep each
+// cardholder's name unique across runs (some flows key off name uniqueness).
+const FIRST_NAMES = ['James', 'Oliver', 'Liam', 'Noah', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Aiden', 'Elijah'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Brown', 'Taylor', 'Wilson', 'Davies', 'Evans', 'Thomas', 'Roberts', 'Walker'];
+const NAME_TAGS = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel', 'India', 'Juliet'];
+
+function uniqueFirstName(): string {
+  return `${FIRST_NAMES[randInt(0, FIRST_NAMES.length - 1)]}${NAME_TAGS[randInt(0, NAME_TAGS.length - 1)]}`;
+}
+function uniqueLastName(): string {
+  return `${LAST_NAMES[randInt(0, LAST_NAMES.length - 1)]}${NAME_TAGS[randInt(0, NAME_TAGS.length - 1)]}`;
+}
+
 /** Pick a random department option from the open listbox */
 async function pickRandomDepartment(page: Page): Promise<void> {
   const options = page.getByRole('listbox').getByRole('option');
@@ -39,8 +53,8 @@ const rnd = randInt(100000, 999999);
 
 // ── Test data ─────────────────────────────────────────────────────────────────
 const CARDHOLDER_VIRTUAL = {
-  firstName:    'Oliver',
-  lastName:     'Bennett',
+  firstName:    uniqueFirstName(),
+  lastName:     uniqueLastName(),
   phone:        randPhone(),
   email:        `ov+${rnd}@carbonpay.io`,
   dobDay:       String(randInt(1, 28)),
@@ -50,8 +64,8 @@ const CARDHOLDER_VIRTUAL = {
 };
 
 const CARDHOLDER_PHYSICAL = {
-  firstName:    'Emma',
-  lastName:     'Clarke',
+  firstName:    uniqueFirstName(),
+  lastName:     uniqueLastName(),
   phone:        randPhone(),
   email:        `ov+${randInt(100000, 999999)}@carbonpay.io`,
   dobDay:       String(randInt(1, 28)),
@@ -68,8 +82,8 @@ const SHIPPING = {
 };
 
 const OTU = {
-  firstName: 'Liam',
-  lastName:  'Morgan',
+  firstName: uniqueFirstName(),
+  lastName:  uniqueLastName(),
   phone:     randPhone(),
   email:     `ov+${randInt(100000, 999999)}@carbonpay.io`,
   limit:     randAmount(1, 5000),

@@ -38,3 +38,8 @@ setup('authenticate as Yacht Manager Admin @setup-yacht-manager-admin', async ({
   await login(page, USERS['yacht-manager-admin']);
   await page.context().storageState({ path: '.auth/yacht-manager-admin.json' });
 });
+
+setup('authenticate as Yacht Manager Admin EUR @setup-yacht-manager-admin-eur', async ({ page }) => {
+  await login(page, USERS['yacht-manager-admin-eur']);
+  await page.context().storageState({ path: '.auth/yacht-manager-admin-eur.json' });
+});
