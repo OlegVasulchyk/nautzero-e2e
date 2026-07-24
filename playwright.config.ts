@@ -81,6 +81,7 @@ export default defineConfig({
         '**/cardholders/*.spec.ts',
         '**/reports/*.spec.ts',
         '**/transactions/*.spec.ts',
+        '**/manual-ledger/*.spec.ts',
       ],
       use: {
         ...devices['Desktop Chrome'],
