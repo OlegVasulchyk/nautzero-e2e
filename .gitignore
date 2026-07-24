@@ -17,3 +17,6 @@ dist/
 
 # VS Code
 .vscode/
+
+# Personal Claude Code context — not shared with other testers
+CLAUDE.local.md
