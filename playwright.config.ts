@@ -30,6 +30,7 @@ export default defineConfig({
     { name: 'setup:cardholder-physical',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-physical$/ },
     { name: 'setup:cardholder-virtual',   testMatch: '**/setup/auth.setup.ts', grep: /@setup-cardholder-virtual$/ },
     { name: 'setup:yacht-manager-admin',  testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-manager-admin$/ },
+    { name: 'setup:yacht-manager-admin-eur', testMatch: '**/setup/auth.setup.ts', grep: /@setup-yacht-manager-admin-eur$/ },
 
     // ── Auth tests: login flow itself (no saved state needed) ───────────────
     {
@@ -86,7 +87,9 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: '.auth/yacht-admin.json',
       },
-      dependencies: ['setup:yacht-admin'],
+      // Also depends on setup:cardholder — tests/cardholders/fund-requests.spec.ts
+      // opens its own second browser context with .auth/cardholder.json.
+      dependencies: ['setup:yacht-admin', 'setup:cardholder'],
     },
 
     // ── Tests that run as Cardholder ────────────────────────────────────────
@@ -109,6 +112,54 @@ export default defineConfig({
         storageState: '.auth/yacht-manager-admin.json',
       },
       dependencies: ['setup:yacht-manager-admin'],
+    },
+
+    // ── Fleet — Create New Boat, run once on the USD account ────────────────
+    {
+      name: 'yacht-manager-admin-usd-fleet',
+      testMatch: ['**/fleet/*.spec.ts'],
+      grep: /USD/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/yacht-manager-admin.json',
+      },
+      dependencies: ['setup:yacht-manager-admin'],
+    },
+
+    // ── Fleet — Create New Boat, run once on the EUR account ────────────────
+    {
+      name: 'yacht-manager-admin-eur-fleet',
+      testMatch: ['**/fleet/*.spec.ts'],
+      grep: /EUR/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/yacht-manager-admin-eur.json',
+      },
+      dependencies: ['setup:yacht-manager-admin-eur'],
+    },
+
+    // ── Settings/Admins — Create New Admin, run once on the USD account ─────
+    {
+      name: 'yacht-manager-admin-usd-settings',
+      testMatch: ['**/settings/*.spec.ts'],
+      grep: /USD/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/yacht-manager-admin.json',
+      },
+      dependencies: ['setup:yacht-manager-admin'],
+    },
+
+    // ── Settings/Admins — Create New Admin, run once on the EUR account ─────
+    {
+      name: 'yacht-manager-admin-eur-settings',
+      testMatch: ['**/settings/*.spec.ts'],
+      grep: /EUR/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/yacht-manager-admin-eur.json',
+      },
+      dependencies: ['setup:yacht-manager-admin-eur'],
     },
   ],
 });

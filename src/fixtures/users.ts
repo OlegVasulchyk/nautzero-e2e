@@ -5,6 +5,7 @@ export type UserRole =
   | 'yacht-admin'
   | 'cardholder'
   | 'yacht-manager-admin'
+  | 'yacht-manager-admin-eur'
   | 'yacht-admin-card'
   | 'cardholder-physical'
   | 'cardholder-virtual';
@@ -15,6 +16,8 @@ export interface UserCredentials {
   role: UserRole;
   /** Full country name to select in dropdown, e.g. 'United States'. Undefined = default GB. */
   countryName?: string;
+  /** Account currency to select on the post-2FA "Select Your Account" screen — Yacht Manager Admin only. Defaults to 'usd'. */
+  accountCurrency?: 'usd' | 'eur';
   /** Expected URL fragment after successful login */
   dashboardPath: string;
 }
@@ -54,11 +57,22 @@ export const USERS: Record<UserRole, UserCredentials> = {
     dashboardPath: '/dashboard',
   },
   'yacht-manager-admin': {
-    phone:         process.env.YACHT_MANAGER_PHONE    ?? '5855431909',
-    password:      process.env.YACHT_MANAGER_PASSWORD ?? '',
-    countryName:   'United States',
-    role:          'yacht-manager-admin',
-    dashboardPath: '/fleet',
+    phone:          process.env.YACHT_MANAGER_PHONE    ?? '5855431909',
+    password:       process.env.YACHT_MANAGER_PASSWORD ?? '',
+    countryName:    'United States',
+    accountCurrency: 'usd',
+    role:           'yacht-manager-admin',
+    dashboardPath:  '/fleet',
+  },
+  // Same Yacht Manager Admin login — selects the EUR account on the post-2FA
+  // "Select Your Account" screen instead of USD.
+  'yacht-manager-admin-eur': {
+    phone:          process.env.YACHT_MANAGER_PHONE    ?? '5855431909',
+    password:       process.env.YACHT_MANAGER_PASSWORD ?? '',
+    countryName:    'United States',
+    accountCurrency: 'eur',
+    role:           'yacht-manager-admin-eur',
+    dashboardPath:  '/fleet',
   },
 };
 
