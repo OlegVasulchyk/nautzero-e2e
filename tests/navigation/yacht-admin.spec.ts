@@ -35,5 +35,15 @@ for (const { tc, title, path } of pages) {
 
     // URL matches expected path
     await expect(page).toHaveURL(new RegExp(path.replace('/', '\\/')));
+
+    // Connectivity error banner can surface a few seconds after load (delayed
+    // background request).
+    const connectivityBanner = page.getByText('Having trouble connecting');
+    const bannerAppeared = await connectivityBanner
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    expect(bannerAppeared, `Connectivity error banner appeared on ${title}`).toBe(false);
   });
 }
