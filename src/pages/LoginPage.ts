@@ -138,11 +138,15 @@ export class LoginPage {
 
   /**
    * Accept Terms & Conditions on the policy-acceptance page.
-   * This page appears only on the first login for an account.
+   * This page appears only on the first login for an account — skipped
+   * entirely (no-op) once the account has already accepted it.
    */
   async acceptPolicyIfPresent() {
     if (this.page.url().includes('policy-acceptance')) {
-      await this.termsCheckbox.check();
+      // The real <input type="checkbox"> is covered by a decorative
+      // <span class="_box_..."> used to draw the custom checkbox, which
+      // intercepts pointer events — force bypasses that actionability check.
+      await this.termsCheckbox.check({ force: true });
       await this.policyContinueButton.click();
     }
   }
