@@ -22,16 +22,30 @@ export interface UserCredentials {
   dashboardPath: string;
 }
 
+/** ISO alpha-2 codes as used in .env (e.g. "GB", "US") → full name the dropdown shows. */
+const COUNTRY_NAMES: Record<string, string> = {
+  GB: 'United Kingdom',
+  US: 'United States',
+};
+
+/** Resolve a *_COUNTRY env value (ISO code) to the full name selectCountry() needs. */
+function resolveCountryName(code?: string): string | undefined {
+  if (!code) return undefined;
+  return COUNTRY_NAMES[code.toUpperCase()] ?? code;
+}
+
 export const USERS: Record<UserRole, UserCredentials> = {
   'yacht-admin': {
     phone:         process.env.YACHT_ADMIN_PHONE    ?? '7793297446',
     password:      process.env.YACHT_ADMIN_PASSWORD ?? '',
+    countryName:   resolveCountryName(process.env.YACHT_ADMIN_COUNTRY),
     role:          'yacht-admin',
     dashboardPath: '/dashboard',
   },
   'cardholder': {
     phone:         process.env.CARDHOLDER_PHONE    ?? '7776580204',
     password:      process.env.CARDHOLDER_PASSWORD ?? '',
+    countryName:   resolveCountryName(process.env.CARDHOLDER_COUNTRY),
     role:          'cardholder',
     dashboardPath: '/dashboard',
   },
@@ -59,7 +73,7 @@ export const USERS: Record<UserRole, UserCredentials> = {
   'yacht-manager-admin': {
     phone:          process.env.YACHT_MANAGER_PHONE    ?? '5855431909',
     password:       process.env.YACHT_MANAGER_PASSWORD ?? '',
-    countryName:    'United States',
+    countryName:    resolveCountryName(process.env.YACHT_MANAGER_COUNTRY) ?? 'United States',
     accountCurrency: 'usd',
     role:           'yacht-manager-admin',
     dashboardPath:  '/fleet',
@@ -69,7 +83,7 @@ export const USERS: Record<UserRole, UserCredentials> = {
   'yacht-manager-admin-eur': {
     phone:          process.env.YACHT_MANAGER_PHONE    ?? '5855431909',
     password:       process.env.YACHT_MANAGER_PASSWORD ?? '',
-    countryName:    'United States',
+    countryName:    resolveCountryName(process.env.YACHT_MANAGER_COUNTRY) ?? 'United States',
     accountCurrency: 'eur',
     role:           'yacht-manager-admin-eur',
     dashboardPath:  '/fleet',

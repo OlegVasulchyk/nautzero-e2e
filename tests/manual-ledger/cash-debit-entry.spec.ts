@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { getDepartmentBalance } from '../../src/helpers/manual-ledger.helper';
+import { getDepartmentBalance, getCurrencySymbol, selectCharterOrAsset } from '../../src/helpers/manual-ledger.helper';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Manual Ledger — Cash Account Balances — Add Cash Entry (Debit / Transfer)
@@ -35,10 +35,9 @@ import { getDepartmentBalance } from '../../src/helpers/manual-ledger.helper';
 // Auth: yacht-admin storageState (set in playwright.config.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CHARTER_OR_BOAT = 'Boat';
 const DEBIT_AMOUNT    = '2000';
 const NOTE_TEXT       = 'Auto Test Cash debit transfer';
-const STEP_DELAY      = 1_000;
+const STEP_DELAY      = 500;
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -59,7 +58,6 @@ test('Debit from Subaccount (Boat)', async ({ page }) => {
   const month = MONTHS[now.getMonth()];
   const year  = String(now.getFullYear());
   const transactionDate = `${String(now.getMonth() + 1).padStart(2, '0')}-${day.padStart(2, '0')}-${year}`;
-  const formattedAmount = `€${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   await page.goto('/accounts');
   await page.waitForTimeout(STEP_DELAY);
@@ -69,6 +67,11 @@ test('Debit from Subaccount (Boat)', async ({ page }) => {
   // Logged-in user's display name, shown in the header (banner: [Help, date, name]).
   // Captured dynamically since it depends on whichever account runs the test.
   const loggedInUserName = (await page.getByRole('banner').locator('p').nth(1).innerText()).trim();
+
+  // Currency depends on the logged-in account (EUR/USD/GBP) — read it
+  // dynamically instead of hardcoding a symbol.
+  const currency = await getCurrencySymbol(page);
+  const formattedAmount = `${currency}${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   // Step 1: Open Add Cash Entry
   await page.getByRole('button', { name: 'Add Cash Entry' }).click();
@@ -88,11 +91,12 @@ test('Debit from Subaccount (Boat)', async ({ page }) => {
   await page.getByRole('button', { name: 'Debit', exact: true }).first().click();
   await page.waitForTimeout(STEP_DELAY);
 
-  // Step 4: Charter or Boat — "Boat" also appears in the dialog heading,
-  // so scope to buttons and take the first match.
-  await expect(page.getByRole('heading', { name: 'Charter or Boat' })).toBeVisible({ timeout: 10_000 });
+  // Step 4: Charter or Boat/Operational — the label depends on the account
+  // type (yacht vs plane) and also appears in the dialog heading, so
+  // selectCharterOrAsset() reads it dynamically and clicks the right button.
+  await expect(page.getByRole('heading', { name: /^Charter or .+$/ })).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(STEP_DELAY);
-  await page.getByRole('button', { name: CHARTER_OR_BOAT, exact: true }).first().click();
+  await selectCharterOrAsset(page, 'asset');
   await page.waitForTimeout(STEP_DELAY);
 
   // Step 5: Debit Details — select the first sub-account from the list
@@ -195,7 +199,7 @@ test('Debit from Subaccount (Boat)', async ({ page }) => {
 
   const cells = transactionArticle.getByRole('row').getByRole('cell');
   await expect(transactionArticle.getByText(subAccountName, { exact: true })).toBeVisible();
-  // Debit is shown as "-€1,000.00" in the row
+  // Debit is shown as "-<symbol>2,000.00" in the row
   await expect(transactionArticle.getByText(formattedAmount, { exact: false })).toBeVisible();
   await expect(transactionArticle.getByText('settled', { exact: true })).toBeVisible(); // shown capitalized via CSS
   await expect(cells.nth(3)).toHaveText(category);
@@ -229,7 +233,6 @@ test('Debit from Subaccount (Charter)', async ({ page }) => {
   const month = MONTHS[now.getMonth()];
   const year  = String(now.getFullYear());
   const transactionDate = `${String(now.getMonth() + 1).padStart(2, '0')}-${day.padStart(2, '0')}-${year}`;
-  const formattedAmount = `€${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   await page.goto('/accounts');
   await page.waitForTimeout(STEP_DELAY);
@@ -239,6 +242,11 @@ test('Debit from Subaccount (Charter)', async ({ page }) => {
   // Logged-in user's display name, shown in the header (banner: [Help, date, name]).
   // Captured dynamically since it depends on whichever account runs the test.
   const loggedInUserName = (await page.getByRole('banner').locator('p').nth(1).innerText()).trim();
+
+  // Currency depends on the logged-in account (EUR/USD/GBP) — read it
+  // dynamically instead of hardcoding a symbol.
+  const currency = await getCurrencySymbol(page);
+  const formattedAmount = `${currency}${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   // Step 1: Open Add Cash Entry
   await page.getByRole('button', { name: 'Add Cash Entry' }).click();
@@ -258,11 +266,12 @@ test('Debit from Subaccount (Charter)', async ({ page }) => {
   await page.getByRole('button', { name: 'Debit', exact: true }).first().click();
   await page.waitForTimeout(STEP_DELAY);
 
-  // Step 4: Charter or Boat — "Charter" also appears in the dialog heading,
-  // so scope to buttons and take the first match.
-  await expect(page.getByRole('heading', { name: 'Charter or Boat' })).toBeVisible({ timeout: 10_000 });
+  // Step 4: Charter or Boat/Operational — the label depends on the account
+  // type (yacht vs plane); "Charter" itself also appears in the dialog
+  // heading, so selectCharterOrAsset() scopes to buttons and clicks it.
+  await expect(page.getByRole('heading', { name: /^Charter or .+$/ })).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(STEP_DELAY);
-  await page.getByRole('button', { name: 'Charter', exact: true }).first().click();
+  await selectCharterOrAsset(page, 'charter');
   await page.waitForTimeout(STEP_DELAY);
 
   // Step 4b: Choose the Charter — pick the first from "Active Charters*"
@@ -375,7 +384,7 @@ test('Debit from Subaccount (Charter)', async ({ page }) => {
 
   const cells = transactionArticle.getByRole('row').getByRole('cell');
   await expect(transactionArticle.getByText(subAccountName, { exact: true })).toBeVisible();
-  // Debit is shown as "-€2,100.00" in the row
+  // Debit is shown as "-<symbol>2,100.00" in the row
   await expect(transactionArticle.getByText(formattedAmount, { exact: false })).toBeVisible();
   await expect(transactionArticle.getByText('settled', { exact: true })).toBeVisible(); // shown capitalized via CSS
   await expect(cells.nth(3)).toHaveText(category);

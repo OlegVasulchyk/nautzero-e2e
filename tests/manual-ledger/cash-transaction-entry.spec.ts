@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { getCurrencySymbol, selectCharterOrAsset } from '../../src/helpers/manual-ledger.helper';
 // TODO: known bug — Cash Account Balances don't update as expected after a
 // Transaction debit, so this check is disabled. Re-import once fixed.
 // import { getCashAccountBalances } from '../../src/helpers/manual-ledger.helper';
@@ -38,11 +39,10 @@ import { test, expect, type Page } from '@playwright/test';
 // Auth: yacht-admin storageState (set in playwright.config.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CHARTER_OR_BOAT = 'Boat';
 const SUPPLIER_NAME   = 'Auto Test Cash debit transfer';
 const DEBIT_AMOUNT    = '101';
 const NOTE_TEXT       = 'Auto Test Cash debit transfer Note';
-const STEP_DELAY      = 1_000;
+const STEP_DELAY      = 500;
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -63,7 +63,6 @@ test('Transaction (Boat)', async ({ page }) => {
   const month = MONTHS[now.getMonth()];
   const year  = String(now.getFullYear());
   const transactionDate = `${String(now.getMonth() + 1).padStart(2, '0')}-${day.padStart(2, '0')}-${year}`;
-  const formattedAmount = `€${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   await page.goto('/accounts');
   await page.waitForTimeout(STEP_DELAY);
@@ -73,6 +72,11 @@ test('Transaction (Boat)', async ({ page }) => {
   // Logged-in user's display name, shown in the header (banner: [Help, date, name]).
   // Captured dynamically since it depends on whichever account runs the test.
   const loggedInUserName = (await page.getByRole('banner').locator('p').nth(1).innerText()).trim();
+
+  // Currency depends on the logged-in account (EUR/USD/GBP) — read it
+  // dynamically instead of hardcoding a symbol.
+  const currency = await getCurrencySymbol(page);
+  const formattedAmount = `${currency}${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   // TODO: known bug — balances don't update as expected after a Transaction
   // debit, so the before/after capture below is commented out until fixed.
@@ -89,11 +93,12 @@ test('Transaction (Boat)', async ({ page }) => {
   await page.getByRole('button', { name: 'Transaction', exact: true }).first().click();
   await page.waitForTimeout(STEP_DELAY);
 
-  // Step 3: Charter or Boat — "Boat" also appears in the dialog heading,
-  // so scope to buttons and take the first match.
-  await expect(page.getByRole('heading', { name: 'Charter or Boat' })).toBeVisible({ timeout: 10_000 });
+  // Step 3: Charter or Boat/Operational — the label depends on the account
+  // type (yacht vs plane) and also appears in the dialog heading, so
+  // selectCharterOrAsset() reads it dynamically and clicks the right button.
+  await expect(page.getByRole('heading', { name: /^Charter or .+$/ })).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(STEP_DELAY);
-  await page.getByRole('button', { name: CHARTER_OR_BOAT, exact: true }).first().click();
+  await selectCharterOrAsset(page, 'asset');
   await page.waitForTimeout(STEP_DELAY);
 
   // Step 4: Debit Details — free-text Supplier Name field. Scoped to the
@@ -205,7 +210,7 @@ test('Transaction (Boat)', async ({ page }) => {
 
   const cells = transactionArticle.getByRole('row').getByRole('cell');
   await expect(transactionArticle.getByText(SUPPLIER_NAME, { exact: true })).toBeVisible();
-  // Debit is shown as "-€101.00" in the row
+  // Debit is shown as "-<symbol>101.00" in the row
   await expect(transactionArticle.getByText(formattedAmount, { exact: false })).toBeVisible();
   await expect(transactionArticle.getByText('settled', { exact: true })).toBeVisible(); // shown capitalized via CSS
   await expect(cells.nth(3)).toHaveText(category);
@@ -235,7 +240,6 @@ test('Transaction (Charter)', async ({ page }) => {
   const month = MONTHS[now.getMonth()];
   const year  = String(now.getFullYear());
   const transactionDate = `${String(now.getMonth() + 1).padStart(2, '0')}-${day.padStart(2, '0')}-${year}`;
-  const formattedAmount = `€${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   await page.goto('/accounts');
   await page.waitForTimeout(STEP_DELAY);
@@ -245,6 +249,11 @@ test('Transaction (Charter)', async ({ page }) => {
   // Logged-in user's display name, shown in the header (banner: [Help, date, name]).
   // Captured dynamically since it depends on whichever account runs the test.
   const loggedInUserName = (await page.getByRole('banner').locator('p').nth(1).innerText()).trim();
+
+  // Currency depends on the logged-in account (EUR/USD/GBP) — read it
+  // dynamically instead of hardcoding a symbol.
+  const currency = await getCurrencySymbol(page);
+  const formattedAmount = `${currency}${Number(DEBIT_AMOUNT).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   // Step 1: Open Add Cash Entry
   await page.getByRole('button', { name: 'Add Cash Entry' }).click();
@@ -257,11 +266,12 @@ test('Transaction (Charter)', async ({ page }) => {
   await page.getByRole('button', { name: 'Transaction', exact: true }).first().click();
   await page.waitForTimeout(STEP_DELAY);
 
-  // Step 3: Charter or Boat — "Charter" also appears in the dialog heading,
-  // so scope to buttons and take the first match.
-  await expect(page.getByRole('heading', { name: 'Charter or Boat' })).toBeVisible({ timeout: 10_000 });
+  // Step 3: Charter or Boat/Operational — the label depends on the account
+  // type (yacht vs plane); "Charter" itself also appears in the dialog
+  // heading, so selectCharterOrAsset() scopes to buttons and clicks it.
+  await expect(page.getByRole('heading', { name: /^Charter or .+$/ })).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(STEP_DELAY);
-  await page.getByRole('button', { name: 'Charter', exact: true }).first().click();
+  await selectCharterOrAsset(page, 'charter');
   await page.waitForTimeout(STEP_DELAY);
 
   // Step 3b: "Choose the Charter" screen — pick the first from "Active Charters*"
