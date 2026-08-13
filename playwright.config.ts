@@ -162,5 +162,11 @@ export default defineConfig({
       },
       dependencies: ['setup:yacht-manager-admin-eur'],
     },
+
+    // ── Airwallex Issuing simulation API — no browser, no NautZero login ─────
+    {
+      name: 'awx-api',
+      testMatch: ['**/api/*.spec.ts'],
+    },
   ],
 });
