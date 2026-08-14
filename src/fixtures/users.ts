@@ -92,3 +92,20 @@ export const USERS: Record<UserRole, UserCredentials> = {
 
 /** Static OTP used in the staging environment */
 export const STAGING_OTP = process.env.OTP_CODE ?? '739712';
+
+/**
+ * Path to a role's saved storageState (produced by the matching `setup:<role>`
+ * project in playwright.config.ts, e.g. '.auth/yacht-admin.json').
+ *
+ * Spec files pass this to `test.use({ storageState: authState('yacht-admin') })`
+ * at the top of the file to make the role they run as explicit and typo-proof
+ * (TypeScript rejects an unknown `UserRole`), instead of leaving it implicit
+ * in whichever project's testMatch glob happens to pick the file up.
+ *
+ * This does NOT trigger the login itself — the project running the file still
+ * needs the corresponding `setup:<role>` in its `dependencies` so the file
+ * exists on disk before the test starts.
+ */
+export function authState(role: UserRole): string {
+  return `.auth/${role}.json`;
+}

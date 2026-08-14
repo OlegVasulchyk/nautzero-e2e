@@ -88,9 +88,10 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: '.auth/yacht-admin.json',
       },
-      // Also depends on setup:cardholder — tests/cardholders/fund-requests.spec.ts
-      // opens its own second browser context with .auth/cardholder.json.
-      dependencies: ['setup:yacht-admin', 'setup:cardholder'],
+      // fund-requests.spec.ts needs a Cardholder session too, but it logs in
+      // live inside the test itself instead of depending on setup:cardholder —
+      // so running any test here (e.g. manual-ledger) only logs in as admin.
+      dependencies: ['setup:yacht-admin'],
     },
 
     // ── Tests that run as Cardholder ────────────────────────────────────────

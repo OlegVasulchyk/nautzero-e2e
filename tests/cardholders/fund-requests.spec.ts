@@ -1,4 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
+import { login } from '../../src/helpers/auth.helper';
+import { USERS } from '../../src/fixtures/users';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TC-073  Cardholder Fund Requests — request & approve
@@ -9,9 +11,12 @@ import { test, expect, type Page } from '@playwright/test';
 // browser context (opened manually from `browser`, not the `page` fixture)
 // so both storageStates are live at once.
 //
-// Auth: .auth/cardholder.json + .auth/yacht-admin.json (both required —
-// playwright.config.ts adds 'setup:cardholder' as an extra dependency on the
-// 'yacht-admin' project so both files exist before this spec runs).
+// Auth: the Yacht Admin context reuses .auth/yacht-admin.json (via the
+// project's storageState — same as every other test in this project), but
+// the Cardholder logs in live, right here, instead of depending on a
+// separate setup:cardholder project — this is the only spec in the suite
+// that needs a second role, so it owns that login itself rather than making
+// every test in this project (including manual-ledger) pay for it too.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function randInt(min: number, max: number) {
@@ -54,8 +59,11 @@ test.describe('TC-073 | Cardholder Fund Requests — request and approve', () =>
 
   test('TC-073 | Cardholder requests funds, Yacht Admin approves, balances & counters update', async ({ browser }) => {
     // ═══ Step 1 — Cardholder submits the request ═══════════════════════════
-    const cardholderContext = await browser.newContext({ storageState: '.auth/cardholder.json' });
+    // Logged in live here (not via a saved storageState) — this is the only
+    // spec that needs a Cardholder session, so it owns the login itself.
+    const cardholderContext = await browser.newContext();
     const chPage = await cardholderContext.newPage();
+    await login(chPage, USERS['cardholder']);
 
     await chPage.goto('/dashboard');
     const requestButton = chPage.getByRole('button', { name: 'Request Additional Funds' });
