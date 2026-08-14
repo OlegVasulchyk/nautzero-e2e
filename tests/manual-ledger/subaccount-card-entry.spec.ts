@@ -5,6 +5,13 @@ import {
   getCurrencySymbol,
   selectCharterOrAsset,
 } from '../../src/helpers/manual-ledger.helper';
+import { authState } from '../../src/fixtures/users';
+
+// Explicit role for this file — independent of which project's testMatch
+// glob happens to pick it up. Only affects which storageState this file's
+// tests load; the matching setup:yacht-admin project still needs to run
+// first so .auth/yacht-admin.json actually exists.
+test.use({ storageState: authState('yacht-admin') });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Manual Ledger — Cash entry via a sub-account's own Department card
@@ -50,8 +57,6 @@ import {
 // 11. The sub-account's own Department balance changed by the entered amount
 // 12. Verify the new transaction row + expand details (+ Charter, for the
 //     Charter variants)
-//
-// Auth: yacht-admin storageState (set in playwright.config.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STEP_DELAY = 500;

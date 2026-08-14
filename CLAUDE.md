@@ -1,3 +1,24 @@
+## Skills & Execution Workflow
+
+### Skill: Safe & Concise Execution
+When assigned ANY task (writing new tests, refactoring, fixing POM, or running Playwright commands), ALWAYS follow this 3-step workflow:
+
+1. **Step 1: Brief Plan (REQUIRED)**
+   - Before writing or modifying any code, output a **short 3-5 bullet point plan** of what you intend to do.
+   - Specify which files (`src/pages/`, `tests/`, etc.) you will create or modify.
+   - Highlight any potential NautZero quirks involved (e.g., cross-origin Airwallex iframes, strict-mode `.first()`, amount input formatting).
+   - **STOP and wait for user confirmation ("Proceed", "Go", "OK") before making changes or executing write commands.**
+
+2. **Step 2: Clean & Concise Code Execution**
+   - Once approved, write the code according to our Playwright POM standards.
+   - **No Fluff:** Do not output long natural language explanations before or after code blocks. Just show the clean code or file diffs.
+   - Keep Page Objects DRY, use user-facing locators (`getByRole`, `getByTestId`), and rely on web-first assertions.
+   - Avoid creating temporary or boilerplate files.
+
+3. **Step 3: Verification**
+   - Run only the specific test using `npx playwright test -g "TC-XXX"` or `--project=<role>`.
+   - Show only the pass/fail execution result summary.
+   
 # NautZero E2E — Claude Code context
 
 Playwright + TypeScript E2E tests for **NautZero** (`https://stg-dashboard.nautzero.com`),

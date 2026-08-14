@@ -1,5 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
 import { getDepartmentBalance, getCurrencySymbol, selectCharterOrAsset } from '../../src/helpers/manual-ledger.helper';
+import { authState } from '../../src/fixtures/users';
+
+// Explicit role for this file — independent of which project's testMatch
+// glob happens to pick it up. Only affects which storageState this file's
+// tests load; the matching setup:yacht-admin project still needs to run
+// first so .auth/yacht-admin.json actually exists.
+test.use({ storageState: authState('yacht-admin') });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Manual Ledger — Cash Account Balances — Add Cash Entry (Debit / Transfer)
@@ -31,8 +38,6 @@ import { getDepartmentBalance, getCurrencySymbol, selectCharterOrAsset } from '.
 // 13. The picked sub-account's Department balance decreased by the debited amount
 // 14. Verify the new transaction row + expand details (+ Charter, for the
 //     Charter variant)
-//
-// Auth: yacht-admin storageState (set in playwright.config.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEBIT_AMOUNT    = '2000';
