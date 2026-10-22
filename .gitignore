@@ -9,8 +9,11 @@ playwright-report/
 test-results/
 dist/
 
-# Environment — NEVER commit real credentials
-.env
+# Environment — NEVER commit real credentials.
+# Covers .env plus any local variant (.env.local, .env.bak, …); the template is
+# the one exception and stays tracked.
+.env*
+!.env.example
 
 # macOS
 .DS_Store

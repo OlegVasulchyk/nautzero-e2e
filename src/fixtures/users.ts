@@ -16,7 +16,12 @@ export interface UserCredentials {
   role: UserRole;
   /** Full country name to select in dropdown, e.g. 'United States'. Undefined = default GB. */
   countryName?: string;
-  /** Account currency to select on the post-2FA "Select Your Account" screen — Yacht Manager Admin only. Defaults to 'usd'. */
+  /**
+   * Currency to pick on the post-2FA "Select Your Account" screen. Only set it for
+   * accounts that actually show that screen — leaving it undefined skips the step.
+   * The regular Yacht Manager Admin's company has a different flow: no account
+   * screen at all, currency is chosen when creating a boat instead.
+   */
   accountCurrency?: 'usd' | 'eur';
   /** Expected URL fragment after successful login */
   dashboardPath: string;
@@ -34,56 +39,73 @@ function resolveCountryName(code?: string): string | undefined {
   return COUNTRY_NAMES[code.toUpperCase()] ?? code;
 }
 
+/**
+ * Read a credential from .env. Credentials live only in .env — nothing is
+ * hardcoded here — so a missing value is a setup error worth failing loudly on,
+ * rather than logging in with an empty field and failing somewhere confusing.
+ */
+function required(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing ${name} in .env — copy .env.example to .env and fill in the values.`);
+  }
+  return value;
+}
+
 export const USERS: Record<UserRole, UserCredentials> = {
   'yacht-admin': {
-    phone:         process.env.YACHT_ADMIN_PHONE    ?? '7793297446',
-    password:      process.env.YACHT_ADMIN_PASSWORD ?? '',
+    phone:         required('YACHT_ADMIN_PHONE'),
+    password:      required('YACHT_ADMIN_PASSWORD'),
     countryName:   resolveCountryName(process.env.YACHT_ADMIN_COUNTRY),
     role:          'yacht-admin',
     dashboardPath: '/dashboard',
   },
   'cardholder': {
-    phone:         process.env.CARDHOLDER_PHONE    ?? '7776580204',
-    password:      process.env.CARDHOLDER_PASSWORD ?? '',
+    phone:         required('CARDHOLDER_PHONE'),
+    password:      required('CARDHOLDER_PASSWORD'),
     countryName:   resolveCountryName(process.env.CARDHOLDER_COUNTRY),
     role:          'cardholder',
     dashboardPath: '/dashboard',
   },
   // Yacht Admin who has a personal card on their dashboard (used for card freeze/unfreeze tests)
   'yacht-admin-card': {
-    phone:         process.env.YACHT_ADMIN_CARD_PHONE    ?? '7771777139',
-    password:      process.env.YACHT_ADMIN_CARD_PASSWORD ?? '',
+    phone:         required('YACHT_ADMIN_CARD_PHONE'),
+    password:      required('YACHT_ADMIN_CARD_PASSWORD'),
+    countryName:   resolveCountryName(process.env.YACHT_ADMIN_CARD_COUNTRY),
     role:          'yacht-admin-card',
     dashboardPath: '/dashboard',
   },
   // Cardholder who owns a PHYSICAL card (dashboard: View PIN, Freeze/Unfreeze, View card details)
   'cardholder-physical': {
-    phone:         process.env.CARDHOLDER_PHYSICAL_PHONE    ?? '7745630803',
-    password:      process.env.CARDHOLDER_PHYSICAL_PASSWORD ?? '',
+    phone:         required('CARDHOLDER_PHYSICAL_PHONE'),
+    password:      required('CARDHOLDER_PHYSICAL_PASSWORD'),
+    countryName:   resolveCountryName(process.env.CARDHOLDER_PHYSICAL_COUNTRY),
     role:          'cardholder-physical',
     dashboardPath: '/dashboard',
   },
   // Cardholder who owns a VIRTUAL card (dashboard: Freeze/Unfreeze, View card details — no PIN)
   'cardholder-virtual': {
-    phone:         process.env.CARDHOLDER_VIRTUAL_PHONE    ?? '7788228399',
-    password:      process.env.CARDHOLDER_VIRTUAL_PASSWORD ?? '',
+    phone:         required('CARDHOLDER_VIRTUAL_PHONE'),
+    password:      required('CARDHOLDER_VIRTUAL_PASSWORD'),
+    countryName:   resolveCountryName(process.env.CARDHOLDER_VIRTUAL_COUNTRY),
     role:          'cardholder-virtual',
     dashboardPath: '/dashboard',
   },
+  // Regular Yacht Manager Admin (GB). This company's flow has NO post-2FA account
+  // screen — currency is picked when creating a boat, so accountCurrency stays unset.
   'yacht-manager-admin': {
-    phone:          process.env.YACHT_MANAGER_PHONE    ?? '5855431909',
-    password:       process.env.YACHT_MANAGER_PASSWORD ?? '',
-    countryName:    resolveCountryName(process.env.YACHT_MANAGER_COUNTRY) ?? 'United States',
-    accountCurrency: 'usd',
+    phone:          required('YACHT_MANAGER_PHONE'),
+    password:       required('YACHT_MANAGER_PASSWORD'),
+    countryName:    resolveCountryName(process.env.YACHT_MANAGER_COUNTRY),
     role:           'yacht-manager-admin',
     dashboardPath:  '/fleet',
   },
-  // Same Yacht Manager Admin login — selects the EUR account on the post-2FA
-  // "Select Your Account" screen instead of USD.
+  // Separate EUR account (US number) — this one DOES show the post-2FA
+  // "Select Your Account" screen, where EUR is chosen.
   'yacht-manager-admin-eur': {
-    phone:          process.env.YACHT_MANAGER_PHONE    ?? '5855431909',
-    password:       process.env.YACHT_MANAGER_PASSWORD ?? '',
-    countryName:    resolveCountryName(process.env.YACHT_MANAGER_COUNTRY) ?? 'United States',
+    phone:          required('YACHT_MANAGER_EUR_PHONE'),
+    password:       required('YACHT_MANAGER_EUR_PASSWORD'),
+    countryName:    resolveCountryName(process.env.YACHT_MANAGER_EUR_COUNTRY),
     accountCurrency: 'eur',
     role:           'yacht-manager-admin-eur',
     dashboardPath:  '/fleet',
@@ -91,4 +113,4 @@ export const USERS: Record<UserRole, UserCredentials> = {
 };
 
 /** Static OTP used in the staging environment */
-export const STAGING_OTP = process.env.OTP_CODE ?? '739712';
+export const STAGING_OTP = required('OTP_CODE');

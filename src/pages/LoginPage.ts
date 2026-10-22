@@ -142,12 +142,21 @@ export class LoginPage {
    * entirely (no-op) once the account has already accepted it.
    */
   async acceptPolicyIfPresent() {
-    if (this.page.url().includes('policy-acceptance')) {
-      // The real <input type="checkbox"> is covered by a decorative
-      // <span class="_box_..."> used to draw the custom checkbox, which
-      // intercepts pointer events — force bypasses that actionability check.
-      await this.termsCheckbox.check({ force: true });
-      await this.policyContinueButton.click();
+    if (!this.page.url().includes('policy-acceptance')) return;
+
+    // The real <input type="checkbox"> is visually replaced by a decorative
+    // <span aria-hidden="true"> inside the <label>. Clicking the input — even
+    // with force — does not toggle it ("clicking the checkbox did not change
+    // its state"), so click that box instead. We deliberately don't click the
+    // <label> itself: it also wraps the "Terms of Service" link.
+    const checkbox = this.page.locator('#policy-acceptance-terms');
+    if (!(await checkbox.isChecked())) {
+      await this.page
+        .locator('label[for="policy-acceptance-terms"] span[aria-hidden="true"]')
+        .click();
     }
+
+    // Continue is disabled until the box is ticked; click() waits for enabled.
+    await this.policyContinueButton.click();
   }
 }

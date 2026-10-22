@@ -8,7 +8,7 @@ import { type UserCredentials, STAGING_OTP } from '../fixtures/users';
  *  2. (Optional) Switch country if not GB
  *  3. Fill phone + password → click Login
  *  4. Enter 6-digit OTP → click Continue
- *  5. (Optional) Select Account USD/EUR — Yacht Manager Admin only
+ *  5. (Optional) Select Account USD/EUR — only for accounts that show that screen
  *  6. Accept Terms & Conditions if policy-acceptance page appears
  *
  * Returns after the dashboard is loaded.
@@ -31,8 +31,12 @@ export async function login(page: Page, user: UserCredentials, otp = STAGING_OTP
   await loginPage.fillOtp(otp);
   await loginPage.submitOtp();
 
-  // Select Account (USD/EUR) — appears for Yacht Manager Admin after 2FA
-  await loginPage.selectAccountIfPresent(user.accountCurrency ?? 'usd');
+  // Select Account (USD/EUR) — only for accounts that show this screen after 2FA.
+  // Skipped when accountCurrency is unset, so the other roles don't each pay the
+  // 5s "is the screen there?" timeout on every login.
+  if (user.accountCurrency) {
+    await loginPage.selectAccountIfPresent(user.accountCurrency);
+  }
 
   // Wait for navigation away from /user/login
   await page.waitForURL((url) => !url.pathname.startsWith('/user/login'), { timeout: 15_000 });
