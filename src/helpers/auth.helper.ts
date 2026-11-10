@@ -27,7 +27,25 @@ export async function login(page: Page, user: UserCredentials, otp = STAGING_OTP
   await loginPage.fillPassword(user.password);
   await loginPage.clickLogin();
 
-  // 2FA
+  // 2FA. KNOWN BLOCKER (Nov 2026): staging may show an Airwallex hosted-SCA
+  // iframe ("Verify your identity") here instead of the app's OTP screen. Its
+  // passcode step accepts the static staging OTP, but the following SMS step
+  // sends a real code to the account's real phone and rejects the static OTP
+  // (attempts are limited — do NOT brute-force it). Until SCA is disabled for
+  // the staging test accounts (or a static SMS code exists), logins can't be
+  // automated; tests keep running on the saved .auth/*.json sessions.
+  const scaIframe = page.locator('iframe[src*="hosted-sca"]');
+  const outcome = await Promise.race([
+    loginPage.otpHeading.waitFor({ state: 'visible', timeout: 15_000 }).then(() => 'otp' as const),
+    scaIframe.waitFor({ state: 'attached', timeout: 15_000 }).then(() => 'sca' as const),
+  ]).catch(() => 'neither' as const);
+  if (outcome === 'sca') {
+    throw new Error(
+      'Staging login is gated by Airwallex SCA (passcode + SMS to the real phone) — ' +
+      'automated login is blocked. Reuse the saved .auth/*.json sessions, or have SCA ' +
+      'disabled for the staging test accounts.'
+    );
+  }
   await loginPage.fillOtp(otp);
   await loginPage.submitOtp();
 
@@ -48,12 +66,3 @@ export async function login(page: Page, user: UserCredentials, otp = STAGING_OTP
   await page.waitForURL((url) => url.pathname.startsWith(user.dashboardPath), { timeout: 15_000 });
 }
 
-/**
- * Logout helper — navigate to logout endpoint or click the logout button.
- * Adjust the selector/URL to match the actual logout mechanism.
- */
-export async function logout(page: Page): Promise<void> {
-  // Try navigating to a logout route first; adjust if app uses a button
-  await page.goto('/user/logout');
-  await page.waitForURL((url) => url.pathname.includes('/login'), { timeout: 10_000 });
-}

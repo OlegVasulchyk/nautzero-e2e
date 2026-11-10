@@ -43,7 +43,8 @@ test.afterAll(async () => {
 // ── TC-074: Single-phase (auth + capture at once) ────────────────────────────
 test('TC-074 | Single-phase transaction is APPROVED and CLEARING', async () => {
   const { status, body } = await awx.createTransaction({
-    ...{ merchant_category_code: MERCHANTS.beachClub.mcc, merchant_info: MERCHANTS.beachClub.info },
+    merchant_category_code: MERCHANTS.beachClub.mcc,
+    merchant_info: MERCHANTS.beachClub.info,
     transaction_amount: 120.0,
     transaction_currency: 'USD',
     single_phase: true,

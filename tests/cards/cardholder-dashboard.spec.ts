@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { STAGING_OTP } from '../../src/fixtures/users';
+import { enterOtp, closeRevealModal } from '../../src/helpers/ui.helper';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TC-064  Cardholder (Physical card) — Dashboard actions:
@@ -16,35 +17,21 @@ import { STAGING_OTP } from '../../src/fixtures/users';
 // matching cardholder account.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Enter the static staging OTP into the 6 single-digit inputs and submit. */
-async function pass2FA(page: Page): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    await page.getByLabel(`Digit ${i + 1} of 6`).fill(STAGING_OTP[i]);
-  }
-  await page.getByRole('button', { name: 'Submit' }).click();
-}
-
-/** Dismiss an open reveal modal (PIN / card details). */
-async function closeModal(page: Page): Promise<void> {
-  const close = page.getByRole('button', { name: /close/i }).first();
-  if (await close.isVisible().catch(() => false)) {
-    await close.click();
-  } else {
-    await page.keyboard.press('Escape');
-  }
-}
-
 /**
- * Ensure the card is Active. If Status shows "Frozen" (only Unfreeze available),
- * unfreeze it first so Freeze / PIN / View Card Details become available.
+ * Ensure the card is Active. Waits for the Status value to render first (an
+ * immediate isVisible() used to race the widget), then unfreezes if Frozen.
  */
 async function ensureCardActive(page: Page): Promise<void> {
-  if (await page.getByText('Frozen', { exact: true }).isVisible().catch(() => false)) {
+  const active = page.getByText('Active', { exact: true });
+  const frozen = page.getByText('Frozen', { exact: true });
+  await expect(active.or(frozen).first()).toBeVisible({ timeout: 15_000 });
+
+  if (await frozen.isVisible()) {
     await page.getByRole('button', { name: 'Unfreeze', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Unfreeze Card' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Yes' }).click();
   }
-  await expect(page.getByText('Active', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(active).toBeVisible({ timeout: 15_000 });
 }
 
 /** Freeze an active card, then unfreeze it back to Active. Each step is confirmed by
@@ -72,12 +59,12 @@ async function viewCardDetails(page: Page): Promise<void> {
   await ensureCardActive(page);
   await page.getByRole('button', { name: 'View Card Details' }).click();
   await expect(page.getByRole('heading', { name: 'Verify Your Identity to View Your Full Card Details' })).toBeVisible({ timeout: 10_000 });
-  await pass2FA(page);
+  await enterOtp(page, STAGING_OTP, 'Submit');
   await expect(page.getByRole('heading', { name: "Here's Your Full Card Details" })).toBeVisible({ timeout: 15_000 });
   // Wait until the secure Airwallex iframe has actually rendered the card data
   const detailsFrame = page.frameLocator('iframe[src*="airwallex.com"][src*="/details"]');
   await expect(detailsFrame.locator('body')).toContainText(/\d/, { timeout: 20_000 });
-  await closeModal(page);
+  await closeRevealModal(page);
 }
 
 /** Open "PIN" (card must be Active), pass 2FA, assert reveal, close. */
@@ -85,12 +72,12 @@ async function viewPin(page: Page): Promise<void> {
   await ensureCardActive(page);
   await page.getByRole('button', { name: 'PIN', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Verify Your Identity to View Your PIN' })).toBeVisible({ timeout: 10_000 });
-  await pass2FA(page);
+  await enterOtp(page, STAGING_OTP, 'Submit');
   await expect(page.getByRole('heading', { name: "Here's Your PIN" })).toBeVisible({ timeout: 15_000 });
   // Wait until the secure Airwallex iframe has actually rendered the PIN digits
   const pinFrame = page.frameLocator('iframe[src*="airwallex.com"][src*="/pin"]');
   await expect(pinFrame.locator('body')).toContainText(/\d/, { timeout: 20_000 });
-  await closeModal(page);
+  await closeRevealModal(page);
 }
 
 /** Wait for the cardholder dashboard card widget to load. */

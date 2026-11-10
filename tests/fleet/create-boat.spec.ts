@@ -1,4 +1,6 @@
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { pickRandomOptionFromButton } from '../../src/helpers/ui.helper';
+import { randInt, randEmail, uniqueFirstName, uniqueLastName } from '../../src/fixtures/test-data';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TC-066  Fleet — Create New Boat (USD account)
@@ -14,10 +16,6 @@ import { test, expect, type Page, type Locator } from '@playwright/test';
 // Auth: yacht-manager-admin.json (USD) / yacht-manager-admin-eur.json (EUR)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function randInt(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 function randPhone() {
   // Ofcom-reserved UK "drama" mobile range (07700 900000–07700 900999) — always
   // valid format & allocation. Arbitrary prefixes are unreliable here: e.g.
@@ -28,35 +26,19 @@ function randPhone() {
   return `7700900${suffix}`;
 }
 
-// No digits — a captain name with digits blocks later card/cardholder
-// creation for that user at Airwallex's name validation.
-const CAPTAIN_FIRST_NAMES = ['James', 'Oliver', 'Liam', 'Noah', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Aiden', 'Elijah'];
-const CAPTAIN_LAST_NAMES = ['Smith', 'Johnson', 'Brown', 'Taylor', 'Wilson', 'Davies', 'Evans', 'Thomas', 'Roberts', 'Walker'];
-
 function buildBoatData() {
   const rnd = randInt(100000, 999999);
   return {
     boatName:    `E2E-Boat-${rnd}`,
     companyName: `E2E-Co-${rnd}`,
-    firstName:   CAPTAIN_FIRST_NAMES[randInt(0, CAPTAIN_FIRST_NAMES.length - 1)],
-    lastName:    CAPTAIN_LAST_NAMES[randInt(0, CAPTAIN_LAST_NAMES.length - 1)],
+    // Digit-free captain names (Airwallex name validation) from the shared factory.
+    firstName:   uniqueFirstName(),
+    lastName:    uniqueLastName(),
     phone:       randPhone(),
-    email:       `ov+test${randInt(100, 100000)}@carbonpay.io`,
+    email:       randEmail(),
   };
 }
 type BoatData = ReturnType<typeof buildBoatData>;
-
-/** Open a dropdown by its trigger button, pick a random option, return its label. */
-async function pickRandomOption(page: Page, buttonName: string): Promise<string> {
-  await page.getByRole('button', { name: buttonName }).click();
-  const options = page.getByRole('listbox').getByRole('option');
-  const count = await options.count();
-  if (count === 0) throw new Error(`${buttonName} listbox has no options`);
-  const chosen = options.nth(randInt(0, count - 1));
-  const label = (await chosen.textContent())?.trim() ?? '';
-  await chosen.click();
-  return label;
-}
 
 /**
  * Full "Add A New Boat" flow: open the drawer, fill in boat + captain details,
@@ -72,8 +54,8 @@ async function createBoat(page: Page, data: BoatData): Promise<{ boatType: strin
   await page.getByRole('textbox', { name: 'Boat Name' }).fill(data.boatName);
   await page.getByRole('textbox', { name: 'Boat Company Name' }).fill(data.companyName);
 
-  const boatType = await pickRandomOption(page, 'Boat Type');
-  const boatSize = await pickRandomOption(page, 'Boat Size');
+  const boatType = await pickRandomOptionFromButton(page, 'Boat Type');
+  const boatSize = await pickRandomOptionFromButton(page, 'Boat Size');
 
   await page.getByRole('textbox', { name: "Captain's First Name" }).fill(data.firstName);
   await page.getByRole('textbox', { name: "Captain's Last Name" }).fill(data.lastName);

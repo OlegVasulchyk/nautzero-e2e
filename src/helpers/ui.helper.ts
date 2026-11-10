@@ -33,12 +33,12 @@ export async function selectNamedOption(page: Page, fieldLabel: string, optionNa
 }
 
 /**
- * Open a dropdown by its label and pick a RANDOM option, returning its text.
- * Used for Department and similar lists whose contents vary per account —
- * never hardcode those names.
+ * Pick a RANDOM option from the currently OPEN listbox, returning its text.
+ * Used for Department / Boat Type and similar lists whose contents vary per
+ * account — never hardcode those names. Open the dropdown first (by label,
+ * button, or dialog-scoped trigger — it differs per form).
  */
-export async function pickRandomOption(page: Page, fieldLabel: string): Promise<string> {
-  await page.getByLabel(fieldLabel, { exact: true }).click();
+export async function pickRandomListboxOption(page: Page): Promise<string> {
   const options = page.getByRole('listbox').getByRole('option');
   await expect(options.first()).toBeVisible();
   const count = await options.count();
@@ -46,6 +46,31 @@ export async function pickRandomOption(page: Page, fieldLabel: string): Promise<
   const text = (await option.innerText()).trim();
   await option.click();
   return text;
+}
+
+/** Open a dropdown by its associated label and pick a random option. */
+export async function pickRandomOption(page: Page, fieldLabel: string): Promise<string> {
+  await page.getByLabel(fieldLabel, { exact: true }).click();
+  return pickRandomListboxOption(page);
+}
+
+/** Open a dropdown by its trigger button's name and pick a random option. */
+export async function pickRandomOptionFromButton(page: Page, buttonName: string): Promise<string> {
+  await page.getByRole('button', { name: buttonName }).click();
+  return pickRandomListboxOption(page);
+}
+
+/**
+ * Dismiss an open reveal modal (PIN / card details): the close button when it
+ * exists, Escape otherwise.
+ */
+export async function closeRevealModal(page: Page): Promise<void> {
+  const close = page.getByRole('button', { name: /close/i }).first();
+  if (await close.isVisible().catch(() => false)) {
+    await close.click();
+  } else {
+    await page.keyboard.press('Escape');
+  }
 }
 
 /**

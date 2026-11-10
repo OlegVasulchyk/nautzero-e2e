@@ -4,11 +4,30 @@ Playwright + TypeScript E2E tests for **NautZero** (`https://stg-dashboard.nautz
 Page Object Model.
 
 ## Stack & layout
-- `tests/` — specs by module: `auth/`, `navigation/`, `cardholders/`, `cards/`, `setup/`
-- `src/pages/` — Page Objects (`LoginPage.ts`)
-- `src/fixtures/users.ts` — users/credentials; `src/helpers/auth.helper.ts` — login flow
+- `tests/` — specs by module: `auth/`, `navigation/`, `cardholders/`, `cards/`, `fleet/`,
+  `settings/`, `manual-ledger/`, `api/`, `setup/`
+- `src/pages/` — Page Objects: `LoginPage`, `ManualLedgerPage` (+ `formatAmount`),
+  `CashEntryWizard` (all manual-ledger wizard steps, no hard sleeps),
+  `TransactionList` (row/details assertions), `CardholdersPage` (list, card actions,
+  Add-a-Cardholder drawer)
+- `src/helpers/` — `auth.helper` (login flow), `ui.helper` (listbox pickers,
+  `fillMaskedInput`, `confirmDialog`, `enterOtp`, `closeRevealModal`,
+  `getLoggedInUserName`), `navigation.helper`, `manual-ledger.helper` (balance reads),
+  `airwallex.helper` (AWX simulation API client)
+- `src/fixtures/test-data.ts` — THE single source of random test data (names, phones,
+  emails, amounts, DOB, `todayParts()`, `uniqueText()`); never re-declare generators in specs
+- `src/fixtures/users.ts` — users/credentials (lazy env reads; `USER_ROLES`, `authFile()`)
 - `playwright.config.ts` — one project per role, each with its own `storageState` (`.auth/*.json`)
 - Credentials & OTP live in `.env` (git-ignored). Static staging OTP: `739712`
+
+## KNOWN BLOCKER — staging login (Nov 2026)
+Staging login is gated by an Airwallex hosted-SCA iframe ("Verify your identity"):
+the passcode step accepts the static OTP, but the next step sends a REAL SMS code to
+the account's real phone and rejects the static OTP. Attempts are limited — NEVER
+brute-force codes there. Until SCA is disabled for the staging test accounts, the
+`setup:*` and `auth` projects fail (auth.helper throws a descriptive error), and the
+suite runs on the saved `.auth/*.json` sessions: `npx playwright test --no-deps`
+with the non-auth projects.
 
 ## Roles / projects
 `yacht-admin`, `cardholder`, `yacht-admin-card` (admin who owns a card),

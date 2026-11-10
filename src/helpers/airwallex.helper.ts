@@ -42,52 +42,39 @@ export interface AwxResult {
  *     { token, expires_at }. Required for privileged operations on some accounts;
  *     enable with AWX_REQUIRE_SCA=true.
  */
-async function login(): Promise<string> {
-  if (!AWX.clientId || !AWX.apiKey) {
-    throw new Error(
-      'Airwallex credentials missing — set AWX_BEARER_TOKEN, or AWX_CLIENT_ID + AWX_API_KEY, in .env'
-    );
-  }
-
+/** POST an auth endpoint and extract the { token } from its response. */
+async function fetchToken(what: string, path: string, headers: Record<string, string>): Promise<string> {
   const ctx = await request.newContext({ baseURL: AWX.baseURL });
   try {
-    const res = await ctx.post('/api/v1/authentication/login', {
-      headers: {
-        'x-client-id': AWX.clientId,
-        'x-api-key': AWX.apiKey,
-        'Content-Type': 'application/json',
-      },
-    });
+    const res = await ctx.post(path, { headers: { ...headers, 'Content-Type': 'application/json' } });
     if (!res.ok()) {
-      throw new Error(`Airwallex login failed: ${res.status()} ${await res.text()}`);
+      throw new Error(`Airwallex ${what} failed: ${res.status()} ${await res.text()}`);
     }
     const { token } = await res.json();
-    if (!token) throw new Error('Airwallex login returned no token');
+    if (!token) throw new Error(`Airwallex ${what} returned no token`);
     return token;
   } finally {
     await ctx.dispose();
   }
 }
 
+async function login(): Promise<string> {
+  if (!AWX.clientId || !AWX.apiKey) {
+    throw new Error(
+      'Airwallex credentials missing — set AWX_BEARER_TOKEN, or AWX_CLIENT_ID + AWX_API_KEY, in .env'
+    );
+  }
+  return fetchToken('login', '/api/v1/authentication/login', {
+    'x-client-id': AWX.clientId,
+    'x-api-key': AWX.apiKey,
+  });
+}
+
 /** Exchange a login token for an SCA-elevated token. */
 async function authorizeSca(loginToken: string): Promise<string> {
-  const ctx = await request.newContext({ baseURL: AWX.baseURL });
-  try {
-    const res = await ctx.post('/api/v1/sca_sessions/authorize', {
-      headers: {
-        Authorization: `Bearer ${loginToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!res.ok()) {
-      throw new Error(`Airwallex SCA authorize failed: ${res.status()} ${await res.text()}`);
-    }
-    const { token } = await res.json();
-    if (!token) throw new Error('Airwallex SCA authorize returned no token');
-    return token;
-  } finally {
-    await ctx.dispose();
-  }
+  return fetchToken('SCA authorize', '/api/v1/sca_sessions/authorize', {
+    Authorization: `Bearer ${loginToken}`,
+  });
 }
 
 async function resolveBearerToken(): Promise<string> {
@@ -126,6 +113,11 @@ export class AirwallexClient {
   private async post(url: string, data: Record<string, unknown>): Promise<AwxResult> {
     const res = await this.ctx.post(url, { data });
     const raw = await res.text();
+    // Fail loudly on HTTP errors — an error body is not an AwxTransaction, and
+    // letting it through surfaced as confusing `body.status === undefined` asserts.
+    if (res.status() >= 400) {
+      throw new Error(`AWX ${url} failed: ${res.status()} ${raw}`);
+    }
     let body: AwxTransaction;
     try {
       body = JSON.parse(raw);
@@ -158,9 +150,9 @@ export class AirwallexClient {
   }
 
   /** POST /api/v1/simulation/issuing/refund */
-  refund(transactionId: string, amount: number, currency: string): Promise<AwxResult> {
+  refund(transactionId: string, amount: number, currency: string, cardId = AWX.cardId): Promise<AwxResult> {
     return this.post('/api/v1/simulation/issuing/refund', {
-      card_id: AWX.cardId,
+      card_id: cardId,
       transaction_amount: amount,
       transaction_currency: currency,
       transaction_id: transactionId,

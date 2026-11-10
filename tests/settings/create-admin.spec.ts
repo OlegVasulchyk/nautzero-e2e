@@ -12,14 +12,8 @@ import { test, expect, type Page } from '@playwright/test';
 // Auth: yacht-manager-admin.json (USD) / yacht-manager-admin-eur.json (EUR)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function randInt(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// No digits — keeps names consistent with the rest of the suite (a name with
-// digits later blocks card/cardholder creation for that user at Airwallex).
-const FIRST_NAMES = ['James', 'Oliver', 'Liam', 'Noah', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Aiden', 'Elijah'];
-const LAST_NAMES = ['Smith', 'Johnson', 'Brown', 'Taylor', 'Wilson', 'Davies', 'Evans', 'Thomas', 'Roberts', 'Walker'];
+import { randInt, randEmail, uniqueFirstName, uniqueLastName } from '../../src/fixtures/test-data';
+import { fillMaskedInput } from '../../src/helpers/ui.helper';
 
 // NANP-reserved fictional range (area code + 555-01xx) — always valid format,
 // never a real subscriber number.
@@ -30,10 +24,12 @@ function buildAdminData() {
   // full 10-digit number (area code + 555 + suffix), matching real US format.
   const suffix = `01${String(randInt(0, 99)).padStart(2, '0')}`;
   return {
-    firstName: FIRST_NAMES[randInt(0, FIRST_NAMES.length - 1)],
-    lastName:  LAST_NAMES[randInt(0, LAST_NAMES.length - 1)],
+    // Digit-free, run-unique names from the shared factory (Airwallex-safe; the
+    // tag suffix also keeps the final name-in-list check unambiguous).
+    firstName: uniqueFirstName(),
+    lastName:  uniqueLastName(),
     phone:     `${US_AREA_CODES[randInt(0, US_AREA_CODES.length - 1)]}555${suffix}`,
-    email:     `ov+test${randInt(1000, 100000)}@carbonpay.io`,
+    email:     randEmail(),
   };
 }
 type AdminData = ReturnType<typeof buildAdminData>;
@@ -60,11 +56,9 @@ async function createAdmin(page: Page, data: AdminData): Promise<void> {
   await dialog.getByPlaceholder('Last name').fill(data.lastName);
 
   // Masked input — .fill() bypasses the keystroke handlers the mask needs to
-  // format progressively, leaving a trailing placeholder char unfilled.
-  const phoneInput = dialog.getByRole('textbox').nth(2);
-  await phoneInput.click();
-  await phoneInput.pressSequentially(data.phone);
-  await phoneInput.blur();
+  // format progressively. Positional nth(2): the phone field exposes no
+  // label/placeholder of its own in this dialog.
+  await fillMaskedInput(dialog.getByRole('textbox').nth(2), data.phone);
 
   await dialog.getByPlaceholder('Email address').fill(data.email);
 
