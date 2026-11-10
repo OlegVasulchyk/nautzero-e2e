@@ -52,65 +52,61 @@ function required(name: string): string {
   return value;
 }
 
-export const USERS: Record<UserRole, UserCredentials> = {
-  'yacht-admin': {
-    phone:         required('YACHT_ADMIN_PHONE'),
-    password:      required('YACHT_ADMIN_PASSWORD'),
-    countryName:   resolveCountryName(process.env.YACHT_ADMIN_COUNTRY),
-    role:          'yacht-admin',
-    dashboardPath: '/dashboard',
-  },
-  'cardholder': {
-    phone:         required('CARDHOLDER_PHONE'),
-    password:      required('CARDHOLDER_PASSWORD'),
-    countryName:   resolveCountryName(process.env.CARDHOLDER_COUNTRY),
-    role:          'cardholder',
-    dashboardPath: '/dashboard',
-  },
+/** Per-role spec of where its values live in .env and how it logs in. */
+interface RoleSpec {
+  envPrefix: string;
+  dashboardPath: string;
+  accountCurrency?: 'usd' | 'eur';
+}
+
+const ROLE_SPECS: Record<UserRole, RoleSpec> = {
+  'yacht-admin':             { envPrefix: 'YACHT_ADMIN',          dashboardPath: '/dashboard' },
+  'cardholder':              { envPrefix: 'CARDHOLDER',           dashboardPath: '/dashboard' },
   // Yacht Admin who has a personal card on their dashboard (used for card freeze/unfreeze tests)
-  'yacht-admin-card': {
-    phone:         required('YACHT_ADMIN_CARD_PHONE'),
-    password:      required('YACHT_ADMIN_CARD_PASSWORD'),
-    countryName:   resolveCountryName(process.env.YACHT_ADMIN_CARD_COUNTRY),
-    role:          'yacht-admin-card',
-    dashboardPath: '/dashboard',
-  },
+  'yacht-admin-card':        { envPrefix: 'YACHT_ADMIN_CARD',     dashboardPath: '/dashboard' },
   // Cardholder who owns a PHYSICAL card (dashboard: View PIN, Freeze/Unfreeze, View card details)
-  'cardholder-physical': {
-    phone:         required('CARDHOLDER_PHYSICAL_PHONE'),
-    password:      required('CARDHOLDER_PHYSICAL_PASSWORD'),
-    countryName:   resolveCountryName(process.env.CARDHOLDER_PHYSICAL_COUNTRY),
-    role:          'cardholder-physical',
-    dashboardPath: '/dashboard',
-  },
+  'cardholder-physical':     { envPrefix: 'CARDHOLDER_PHYSICAL',  dashboardPath: '/dashboard' },
   // Cardholder who owns a VIRTUAL card (dashboard: Freeze/Unfreeze, View card details — no PIN)
-  'cardholder-virtual': {
-    phone:         required('CARDHOLDER_VIRTUAL_PHONE'),
-    password:      required('CARDHOLDER_VIRTUAL_PASSWORD'),
-    countryName:   resolveCountryName(process.env.CARDHOLDER_VIRTUAL_COUNTRY),
-    role:          'cardholder-virtual',
-    dashboardPath: '/dashboard',
-  },
+  'cardholder-virtual':      { envPrefix: 'CARDHOLDER_VIRTUAL',   dashboardPath: '/dashboard' },
   // Regular Yacht Manager Admin (GB). This company's flow has NO post-2FA account
   // screen — currency is picked when creating a boat, so accountCurrency stays unset.
-  'yacht-manager-admin': {
-    phone:          required('YACHT_MANAGER_PHONE'),
-    password:       required('YACHT_MANAGER_PASSWORD'),
-    countryName:    resolveCountryName(process.env.YACHT_MANAGER_COUNTRY),
-    role:           'yacht-manager-admin',
-    dashboardPath:  '/fleet',
-  },
+  'yacht-manager-admin':     { envPrefix: 'YACHT_MANAGER',        dashboardPath: '/fleet' },
   // Separate EUR account (US number) — this one DOES show the post-2FA
   // "Select Your Account" screen, where EUR is chosen.
-  'yacht-manager-admin-eur': {
-    phone:          required('YACHT_MANAGER_EUR_PHONE'),
-    password:       required('YACHT_MANAGER_EUR_PASSWORD'),
-    countryName:    resolveCountryName(process.env.YACHT_MANAGER_EUR_COUNTRY),
-    accountCurrency: 'eur',
-    role:           'yacht-manager-admin-eur',
-    dashboardPath:  '/fleet',
-  },
+  'yacht-manager-admin-eur': { envPrefix: 'YACHT_MANAGER_EUR',    dashboardPath: '/fleet', accountCurrency: 'eur' },
 };
+
+/** Every known role — iterate this (e.g. in auth.setup.ts) instead of Object.keys(USERS). */
+export const USER_ROLES = Object.keys(ROLE_SPECS) as UserRole[];
+
+/** storageState file for a role, shared between auth.setup.ts and playwright.config.ts. */
+export function authFile(role: UserRole): string {
+  return `.auth/${role}.json`;
+}
+
+function buildUser(role: UserRole): UserCredentials {
+  const spec = ROLE_SPECS[role];
+  return {
+    phone:           required(`${spec.envPrefix}_PHONE`),
+    password:        required(`${spec.envPrefix}_PASSWORD`),
+    countryName:     resolveCountryName(process.env[`${spec.envPrefix}_COUNTRY`]),
+    accountCurrency: spec.accountCurrency,
+    role,
+    dashboardPath:   spec.dashboardPath,
+  };
+}
+
+/**
+ * Credentials are resolved lazily (on property access, not import), so a spec
+ * that needs only one role — or only STAGING_OTP — doesn't fail on other
+ * roles' missing .env values.
+ */
+export const USERS: Record<UserRole, UserCredentials> = new Proxy({} as Record<UserRole, UserCredentials>, {
+  get: (_target, role) => (typeof role === 'string' && role in ROLE_SPECS ? buildUser(role as UserRole) : undefined),
+  has: (_target, role) => typeof role === 'string' && role in ROLE_SPECS,
+  ownKeys: () => USER_ROLES,
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+});
 
 /** Static OTP used in the staging environment */
 export const STAGING_OTP = required('OTP_CODE');

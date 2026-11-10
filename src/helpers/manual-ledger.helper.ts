@@ -11,8 +11,10 @@ const AMOUNT_RE = new RegExp(`${CURRENCY_CLASS}([\\d,]+\\.\\d{2})`);
  * manual-ledger page shows this widget, so it's a reliable place to read it
  * from regardless of which flow (External Account or Cash Account) is under test.
  */
+const EXTERNAL_ACCOUNT_RE = new RegExp(`External Account:\\s*${CURRENCY_CLASS}[\\d,]+\\.\\d{2}`);
+
 export async function getCurrencySymbol(page: Page): Promise<string> {
-  const text = await page.getByText(new RegExp(`External Account:\\s*${CURRENCY_CLASS}[\\d,]+\\.\\d{2}`)).innerText();
+  const text = await page.getByText(EXTERNAL_ACCOUNT_RE).innerText();
   const match = text.match(new RegExp(CURRENCY_CLASS));
   if (!match) throw new Error(`Could not detect currency symbol from: "${text}"`);
   return match[0];
@@ -20,7 +22,7 @@ export async function getCurrencySymbol(page: Page): Promise<string> {
 
 /** Read the "External Account: <symbol>X,XXX.XX" balance shown on the Manual Ledger page. */
 export async function getExternalAccountBalance(page: Page): Promise<number> {
-  const text = await page.getByText(new RegExp(`External Account:\\s*${CURRENCY_CLASS}[\\d,]+\\.\\d{2}`)).innerText();
+  const text = await page.getByText(EXTERNAL_ACCOUNT_RE).innerText();
   const match = text.match(AMOUNT_RE);
   if (!match) throw new Error(`Could not parse External Account balance from: "${text}"`);
   return parseFloat(match[1].replace(/,/g, ''));
@@ -32,11 +34,11 @@ export async function getExternalAccountBalance(page: Page): Promise<number> {
  * text node). Climbs from the label to the nearest ancestor containing the amount.
  */
 async function getBalanceByLabel(page: Page, label: string): Promise<number> {
-  return await page.evaluate(({ labelText, symbols }) => {
+  const value = await page.evaluate(({ labelText, symbols }) => {
     const labelEl = [...document.querySelectorAll('p,span,div')].find(
       (e) => e.textContent?.trim() === `${labelText}:`
     );
-    if (!labelEl) return 0;
+    if (!labelEl) return null;
     const amountPattern = new RegExp(`^[${symbols.join('')}][\\d,]+\\.\\d{2}$`);
     let c: Element | null = labelEl.closest('div');
     for (let i = 0; i < 6 && c; i++) {
@@ -46,8 +48,12 @@ async function getBalanceByLabel(page: Page, label: string): Promise<number> {
       if (m) return parseFloat(m.replace(/[^\d.]/g, ''));
       c = c.parentElement;
     }
-    return 0;
+    return null;
   }, { labelText: label, symbols: CURRENCY_SYMBOLS });
+  // Throw instead of returning a silent 0 — a missing/not-yet-rendered widget
+  // must fail the read, not fake an empty balance. Callers that poll catch this.
+  if (value === null) throw new Error(`Could not find the "${label}:" balance on the page`);
+  return value;
 }
 
 /** Read Total, Allocated, and Remaining Balance from the Cash Account Balances widget. */

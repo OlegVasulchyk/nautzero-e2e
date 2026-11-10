@@ -22,9 +22,12 @@ export function randAmount(min: number, max: number): string {
   return (Math.random() * (max - min) + min).toFixed(2);
 }
 
-/** Valid UK mobile local number (prefix 71/72/73/74/75/77/78/79 + 6 digits). */
+/**
+ * Valid UK mobile local number. The 7678 prefix is deliberately absent:
+ * 447678xxxxxx numbers fail to save on the staging server.
+ */
 export function randPhone(): string {
-  const prefixes = ['7121', '7234', '7345', '7456', '7567', '7678', '7789', '7890'];
+  const prefixes = ['7121', '7234', '7345', '7456', '7567', '7789', '7890'];
   const prefix = prefixes[randInt(0, prefixes.length - 1)];
   return prefix + String(randInt(100000, 999999));
 }
@@ -101,6 +104,33 @@ export function makeCardholder(monthlyLimit = randAmount(0.09, 99999)): Cardhold
     dobYear: dob.year,
     monthlyLimit,
   };
+}
+
+/** Date parts for the custom Day/Month/Year pickers + the "MM-DD-YYYY" string the app shows. */
+export interface DateParts {
+  day: string;
+  month: (typeof MONTHS)[number];
+  year: string;
+  /** "MM-DD-YYYY" as shown in wizard summaries and transaction rows. */
+  formatted: string;
+}
+
+/** Today's date in the shape the manual-ledger wizard and its summaries use. */
+export function todayParts(): DateParts {
+  const now = new Date();
+  const day = String(now.getDate());
+  const month = MONTHS[now.getMonth()];
+  const year = String(now.getFullYear());
+  const formatted = `${String(now.getMonth() + 1).padStart(2, '0')}-${day.padStart(2, '0')}-${year}`;
+  return { day, month, year, formatted };
+}
+
+/**
+ * Run-unique text for notes / supplier / creditor / reference fields, so rows
+ * left behind by prior staging runs never collide with this run's text filters.
+ */
+export function uniqueText(prefix: string): string {
+  return `${prefix} ${randInt(10000, 99999)}`;
 }
 
 /** Physical-card shipping address used in creation and replacement flows. */
