@@ -147,6 +147,30 @@ export class CashEntryWizard {
     await this.next();
   }
 
+  /**
+   * External "Add a New Paid Invoice" — one combined form (reference, amount,
+   * date, category/subcategory, optional invoice copy skipped, note), then Next.
+   * Scoped to the dialog: a prior staging row's table header also exposes an
+   * "Invoice Reference" label, so page-wide getByLabel hits strict mode.
+   */
+  async fillPaidInvoiceForm(invoice: {
+    reference: string;
+    amount: string;
+    date: DateParts;
+    note: string;
+  }): Promise<{ category: string; subcategory: string }> {
+    await this.expectStep('Add a New Paid Invoice');
+    const dialog = this.dialog('Add a New Paid Invoice');
+    await dialog.getByLabel('Invoice Reference').fill(invoice.reference);
+    await fillMaskedInput(dialog.getByLabel('Total Invoice Amount'), invoice.amount);
+    await this.pickDate(invoice.date);
+    const category = await selectFirstOption(this.page, 'Category');
+    const subcategory = await selectFirstOption(this.page, 'Subcategory');
+    await this.page.getByPlaceholder('Enter Note').fill(invoice.note);
+    await this.next();
+    return { category, subcategory };
+  }
+
   // ── Summary & submit ────────────────────────────────────────────────────────
 
   /**

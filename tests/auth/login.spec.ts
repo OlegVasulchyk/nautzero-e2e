@@ -4,24 +4,29 @@ import { login } from '../../src/helpers/auth.helper';
 import { USERS, STAGING_OTP } from '../../src/fixtures/users';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TC-001 · TC-002 · TC-003  Login — all three roles
+// TC-001 · TC-002 · TC-003  Login — Cardholder / Yacht Admin / Yacht Manager Admin
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe('Login', () => {
 
-  // ── TC-001: Cardholder ────────────────────────────────────────────────────
+  // ── TC-001: Cardholder — the one step-by-step flow (asserts each 2FA screen);
+  //    the other roles reuse the login() helper for the same steps. ────────────
   test('TC-001 | Login as Cardholder', async ({ page }) => {
+    const user = USERS.cardholder;
     const loginPage = new LoginPage(page);
     await loginPage.goto();
 
-    // Step 1: Fill credentials
-    await loginPage.fillPhone(USERS.cardholder.phone);
-    await loginPage.fillPassword(USERS.cardholder.password);
+    // Step 1: Fill credentials (country from the fixture — not hardcoded GB)
+    if (user.countryName && user.countryName !== 'United Kingdom') {
+      await loginPage.selectCountry(user.countryName);
+    }
+    await loginPage.fillPhone(user.phone);
+    await loginPage.fillPassword(user.password);
     await loginPage.clickLogin();
 
     // Step 2: 2FA screen appears
     await expect(loginPage.otpHeading).toBeVisible();
-    await expect(page.locator('text=We\'ve sent a 6-digit security code')).toBeVisible();
+    await expect(page.getByText("We've sent a 6-digit security code")).toBeVisible();
 
     // Step 3: Enter OTP
     await loginPage.fillOtp(STAGING_OTP);
@@ -32,32 +37,18 @@ test.describe('Login', () => {
     await loginPage.acceptPolicyIfPresent();
 
     // Step 5: Assert Dashboard loaded
-    await page.waitForURL((url) => url.pathname.startsWith('/dashboard'), { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/dashboard/);
+    await page.waitForURL((url) => url.pathname.startsWith(user.dashboardPath), { timeout: 15_000 });
 
-    // Assert Cardholder-specific nav is visible (no Finance/Cardholders/Banking)
+    // Cardholder nav: positive check first, so the absence checks below can't
+    // pass just because the nav hasn't rendered yet.
+    await expect(page.locator('a[title="Impact"]')).toBeVisible();
     await expect(page.locator('a[title="Finance"]')).not.toBeVisible();
     await expect(page.locator('a[title="Cardholders"]')).not.toBeVisible();
   });
 
   // ── TC-002: Yacht Admin ───────────────────────────────────────────────────
   test('TC-002 | Login as Yacht Admin', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-
-    await loginPage.fillPhone(USERS['yacht-admin'].phone);
-    await loginPage.fillPassword(USERS['yacht-admin'].password);
-    await loginPage.clickLogin();
-
-    // 2FA
-    await expect(loginPage.otpHeading).toBeVisible();
-    await loginPage.fillOtp(STAGING_OTP);
-    await loginPage.submitOtp();
-
-    await page.waitForURL((url) => !url.pathname.startsWith('/user/login'), { timeout: 15_000 });
-    await loginPage.acceptPolicyIfPresent();
-
-    await page.waitForURL((url) => url.pathname.startsWith('/dashboard'), { timeout: 15_000 });
+    await login(page, USERS['yacht-admin']);
     await expect(page).toHaveURL(/\/dashboard/);
 
     // Assert Yacht Admin nav items are visible
@@ -68,31 +59,11 @@ test.describe('Login', () => {
     await expect(page.locator('a[title="Manual Ledger"]')).toBeVisible();
   });
 
-  // ── TC-003: Yacht Manager Admin ───────────────────────────────────────────
+  // ── TC-003: Yacht Manager Admin — country comes from the fixture, and this
+  //    company shows NO post-2FA account screen (login() skips it when
+  //    accountCurrency is unset), so there's no 5s "is it there?" penalty. ────
   test('TC-003 | Login as Yacht Manager Admin', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-
-    // Step 1: Select United States from country dropdown
-    await loginPage.selectCountry('United States');
-    // Step 2: Fill in local phone number (without country code)
-    await loginPage.fillPhone(USERS['yacht-manager-admin'].phone);
-    await loginPage.fillPassword(USERS['yacht-manager-admin'].password);
-    await loginPage.clickLogin();
-
-    // 2FA
-    await expect(loginPage.otpHeading).toBeVisible();
-    await loginPage.fillOtp(STAGING_OTP);
-    await loginPage.submitOtp();
-
-    // Account selection (USD/EUR) — specific to Yacht Manager Admin
-    await loginPage.selectAccountIfPresent('usd');
-
-    await page.waitForURL((url) => !url.pathname.startsWith('/user/login'), { timeout: 15_000 });
-    await loginPage.acceptPolicyIfPresent();
-
-    // Yacht Manager Admin lands on /fleet after login
-    await page.waitForURL((url) => url.pathname.startsWith('/fleet'), { timeout: 15_000 });
+    await login(page, USERS['yacht-manager-admin']);
     await expect(page).toHaveURL(/\/fleet/);
 
     // Assert Yacht Manager Admin-specific nav
@@ -115,9 +86,9 @@ test.describe('Login — negative cases', () => {
     await loginPage.fillPassword('WrongPassword123!');
     await loginPage.clickLogin();
 
-    // Should stay on login page and show an error
-    await expect(page).toHaveURL(/\/user\/login/);
+    // Error shown, and still on the login page
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
+    await expect(page).toHaveURL(/\/user\/login/);
   });
 
   test('Shows error on wrong OTP', async ({ page }) => {
@@ -132,8 +103,9 @@ test.describe('Login — negative cases', () => {
     await loginPage.fillOtp('000000');
     await loginPage.submitOtp();
 
-    // Should show error and stay on login / 2FA screen
+    // Error shown, and still on the login / 2FA screen (not logged in)
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
+    await expect(page).toHaveURL(/\/user\/login/);
   });
 
   test('Shows error when submitting empty form', async ({ page }) => {
@@ -141,8 +113,8 @@ test.describe('Login — negative cases', () => {
     await loginPage.goto();
     await loginPage.clickLogin();
 
-    await expect(page).toHaveURL(/\/user\/login/);
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
+    await expect(page).toHaveURL(/\/user\/login/);
   });
 
   test('Shows error when password is empty', async ({ page }) => {
@@ -151,8 +123,8 @@ test.describe('Login — negative cases', () => {
     await loginPage.fillPhone(USERS['yacht-admin'].phone);
     await loginPage.clickLogin();
 
-    await expect(page).toHaveURL(/\/user\/login/);
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 8_000 });
+    await expect(page).toHaveURL(/\/user\/login/);
   });
 
 });
@@ -182,9 +154,3 @@ test.describe('Login — 2FA', () => {
   });
 
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Convenience: reusable login used in other spec files
-// Usage:  await login(page, USERS['yacht-admin']);
-// ─────────────────────────────────────────────────────────────────────────────
-export { login };

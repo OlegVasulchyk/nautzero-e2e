@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
+import { expectPageAvailable } from '../../src/helpers/navigation.helper';
 
 /**
  * Navigation tests — Yacht Admin
@@ -28,22 +29,6 @@ const pages = [
 
 for (const { tc, title, path } of pages) {
   test(`${tc} | Yacht Admin navigates to ${title}`, async ({ page }) => {
-    await page.goto(path);
-
-    // Not bounced to login — session is valid
-    await expect(page).not.toHaveURL(/\/user\/login/, { timeout: 10_000 });
-
-    // URL matches expected path
-    await expect(page).toHaveURL(new RegExp(path.replace('/', '\\/')));
-
-    // Connectivity error banner can surface a few seconds after load (delayed
-    // background request).
-    const connectivityBanner = page.getByText('Having trouble connecting');
-    const bannerAppeared = await connectivityBanner
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .then(() => true)
-      .catch(() => false);
-
-    expect(bannerAppeared, `Connectivity error banner appeared on ${title}`).toBe(false);
+    await expectPageAvailable(page, path, title);
   });
 }
