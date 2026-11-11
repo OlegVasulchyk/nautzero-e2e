@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from '../../src/fixtures/test';
 import { expectPageAvailable } from '../../src/helpers/navigation.helper';
 
 /**

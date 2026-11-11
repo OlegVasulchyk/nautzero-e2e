@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../src/fixtures/test';
 import { LoginPage } from '../../src/pages/LoginPage';
 import { login } from '../../src/helpers/auth.helper';
 import { USERS, STAGING_OTP } from '../../src/fixtures/users';

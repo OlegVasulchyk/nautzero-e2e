@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../../src/fixtures/test';
 import { STAGING_OTP } from '../../src/fixtures/users';
 import { enterOtp, closeRevealModal } from '../../src/helpers/ui.helper';
 

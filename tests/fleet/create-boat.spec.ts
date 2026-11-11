@@ -1,30 +1,19 @@
-import { test, expect, type Page } from '@playwright/test';
-import { pickRandomOptionFromButton } from '../../src/helpers/ui.helper';
-import { randInt, randEmail, uniqueFirstName, uniqueLastName } from '../../src/fixtures/test-data';
+import { test, expect, type Page } from '../../src/fixtures/test';
+import { pickRandomOptionFromButton, fillMaskedInput } from '../../src/helpers/ui.helper';
+import { randInt, randEmail, randPhone, uniqueFirstName, uniqueLastName } from '../../src/fixtures/test-data';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TC-066  Fleet — Create New Boat (USD account)
-// TC-067  Fleet — Create New Boat (EUR account)
+// TC-066  Fleet — Create New Boat (USD boat)
+// TC-067  Fleet — Create New Boat (EUR boat)
 //
-// Both tests run the same "Add A New Boat" flow. The Yacht Manager Admin picks
-// USD or EUR on the post-2FA "Select Your Account" screen at login (see
-// src/fixtures/users.ts — 'yacht-manager-admin' vs 'yacht-manager-admin-eur'),
-// and every boat created afterwards belongs to that currency's Fleet account.
-// Config projects run this file twice — once per currency — via `grep` on the
-// "USD"/"EUR" describe title, each with its own storageState.
+// Both tests run the same "Add A New Boat" flow and differ only in the
+// "Boat Currency" picked in the form. DOM-verified (Nov 2026): the currency is
+// a per-boat form field (USD / EUR / GBP) and one Fleet holds boats of every
+// currency — there is no separate "USD account" / "EUR account" fleet any more.
+// "Boat Currency" and "Billing Frequency" (Monthly / Annual) are required.
 //
-// Auth: yacht-manager-admin.json (USD) / yacht-manager-admin-eur.json (EUR)
+// Auth: yacht-manager-admin storageState
 // ─────────────────────────────────────────────────────────────────────────────
-
-function randPhone() {
-  // Ofcom-reserved UK "drama" mobile range (07700 900000–07700 900999) — always
-  // valid format & allocation. Arbitrary prefixes are unreliable here: e.g.
-  // 447678xxxxxx failed to persist server-side (captain's phone came back null
-  // in the backend user entity) while 447718xxxxxx worked, so we stick to this
-  // dedicated test range instead of guessing which prefixes are safe.
-  const suffix = String(randInt(0, 999)).padStart(3, '0');
-  return `7700900${suffix}`;
-}
 
 function buildBoatData() {
   const rnd = randInt(100000, 999999);
@@ -34,6 +23,8 @@ function buildBoatData() {
     // Digit-free captain names (Airwallex name validation) from the shared factory.
     firstName:   uniqueFirstName(),
     lastName:    uniqueLastName(),
+    // Shared valid-UK-mobile generator. The Ofcom "drama" range (07700 900xxx)
+    // used here before is now rejected by the form ("Enter a valid mobile number.").
     phone:       randPhone(),
     email:       randEmail(),
   };
@@ -44,7 +35,7 @@ type BoatData = ReturnType<typeof buildBoatData>;
  * Full "Add A New Boat" flow: open the drawer, fill in boat + captain details,
  * confirm the review screen values, submit, and assert the success toast.
  */
-async function createBoat(page: Page, data: BoatData): Promise<{ boatType: string; boatSize: string }> {
+async function createBoat(page: Page, data: BoatData, currency: 'USD' | 'EUR'): Promise<void> {
   await page.goto('/fleet');
   await expect(page.getByRole('heading', { name: 'Fleet' })).toBeVisible();
 
@@ -54,12 +45,16 @@ async function createBoat(page: Page, data: BoatData): Promise<{ boatType: strin
   await page.getByRole('textbox', { name: 'Boat Name' }).fill(data.boatName);
   await page.getByRole('textbox', { name: 'Boat Company Name' }).fill(data.companyName);
 
+  await page.getByRole('button', { name: 'Boat Currency' }).click();
+  await page.getByRole('listbox').getByRole('option', { name: currency, exact: true }).click();
+  await pickRandomOptionFromButton(page, 'Billing Frequency');
+
   const boatType = await pickRandomOptionFromButton(page, 'Boat Type');
   const boatSize = await pickRandomOptionFromButton(page, 'Boat Size');
 
   await page.getByRole('textbox', { name: "Captain's First Name" }).fill(data.firstName);
   await page.getByRole('textbox', { name: "Captain's Last Name" }).fill(data.lastName);
-  await page.getByRole('textbox', { name: "Captain's Mobile Number" }).fill(data.phone);
+  await fillMaskedInput(page.getByRole('textbox', { name: "Captain's Mobile Number" }), data.phone);
   await page.getByRole('textbox', { name: "Captain's Email Address" }).fill(data.email);
 
   await page.getByRole('button', { name: 'Continue' }).click();
@@ -81,31 +76,23 @@ async function createBoat(page: Page, data: BoatData): Promise<{ boatType: strin
   await expect(page.getByText(`${data.boatName} has been added to your fleet.`)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('dialog', { name: 'Add A New Boat' })).not.toBeVisible({ timeout: 10_000 });
 
-  return { boatType, boatSize };
+  // New boat is listed on the Fleet page, in the chosen currency. Search first:
+  // the fleet holds many boats.
+  await page.getByRole('searchbox', { name: 'Search Boat Name' }).fill(data.boatName);
+  const card = page.getByRole('article').filter({ hasText: data.boatName });
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card.getByText(currency, { exact: true })).toBeVisible();
 }
 
-// ── TC-066: Create New Boat — USD account ───────────────────────────────────
-test.describe('TC-066 | Create New Boat — USD account', () => {
-  test.setTimeout(60_000);
+for (const { tc, currency } of [
+  { tc: 'TC-066', currency: 'USD' },
+  { tc: 'TC-067', currency: 'EUR' },
+] as const) {
+  test.describe(`${tc} | Create New Boat — ${currency} boat`, () => {
+    test.setTimeout(60_000);
 
-  test('TC-066 | Creates a new boat on the USD Fleet account', async ({ page }) => {
-    const data = buildBoatData();
-    await createBoat(page, data);
-
-    // New boat is listed on the Fleet page
-    await expect(page.getByRole('button', { name: new RegExp(`View .*${data.boatName}`) })).toBeVisible({ timeout: 15_000 });
+    test(`${tc} | Creates a new ${currency} boat on the Fleet`, async ({ page }) => {
+      await createBoat(page, buildBoatData(), currency);
+    });
   });
-});
-
-// ── TC-067: Create New Boat — EUR account ───────────────────────────────────
-test.describe('TC-067 | Create New Boat — EUR account', () => {
-  test.setTimeout(60_000);
-
-  test('TC-067 | Creates a new boat on the EUR Fleet account', async ({ page }) => {
-    const data = buildBoatData();
-    await createBoat(page, data);
-
-    // New boat is listed on the Fleet page
-    await expect(page.getByRole('button', { name: new RegExp(`View .*${data.boatName}`) })).toBeVisible({ timeout: 15_000 });
-  });
-});
+}

@@ -14,8 +14,20 @@ import { randInt } from '../fixtures/test-data';
  * `role="option"` (not native <select>).
  */
 export async function selectOptionByIndex(page: Page, fieldLabel: string, index: number): Promise<string> {
-  await page.getByLabel(fieldLabel, { exact: true }).click();
-  const option = page.getByRole('listbox').getByRole('option').nth(index);
+  const trigger = page.getByLabel(fieldLabel, { exact: true });
+  const options = page.getByRole('listbox').getByRole('option');
+
+  // A click during the drawer's open-transition can be swallowed before the
+  // field's handler is attached, leaving the listbox closed — retry the click
+  // until options actually appear instead of hanging on the first option.
+  await trigger.click();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const opened = await options.first().waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false);
+    if (opened) break;
+    await trigger.click();
+  }
+
+  const option = options.nth(index);
   const text = (await option.innerText()).trim();
   await option.click();
   return text;
@@ -96,10 +108,10 @@ export async function confirmDialog(page: Page, heading: string | RegExp, button
 }
 
 /**
- * Wait for a success toast/confirmation. Case-sensitive by default so random
- * prose containing "successfully" isn't silently accepted unless asked for.
+ * Wait for a success toast/confirmation. Case-insensitive: the toast text is
+ * lowercase/mixed in the DOM and only LOOKS uppercase via CSS text-transform.
  */
-export async function expectSuccessToast(page: Page, pattern: string | RegExp = /SUCCESS/): Promise<void> {
+export async function expectSuccessToast(page: Page, pattern: string | RegExp = /SUCCESS/i): Promise<void> {
   await expect(page.getByText(pattern).first()).toBeVisible({ timeout: 15_000 });
 }
 
@@ -116,9 +128,20 @@ export async function enterOtp(page: Page, otp: string, submitButtonName: 'Conti
 
 /**
  * The logged-in user's display name, from the header banner.
- * Positional on purpose: the banner renders [Help, date, name] as <p> elements
- * with no distinguishing roles/labels.
+ * Positional on purpose: the banner renders [… date, name] as <p> elements with
+ * no distinguishing roles/labels, and ALSO contains hidden desktop/mobile
+ * duplicates (a hidden short-form date broke a plain nth() here) — so take the
+ * last VISIBLE paragraph, which is the name.
  */
 export async function getLoggedInUserName(page: Page): Promise<string> {
-  return (await page.getByRole('banner').locator('p').nth(1).innerText()).trim();
+  // The banner's visible paragraphs are the date ("November 11 2026") and the
+  // name — but the name loads asynchronously, so "last visible <p>" is the
+  // date until it arrives. Poll for a visible paragraph that isn't date-like.
+  const DATE_LIKE = /^(?:[A-Z][a-z]+ \d{1,2}(?:,? ?\d{4})?|\d{4})$/;
+  const readName = async () => {
+    const texts = await page.getByRole('banner').locator('p:visible').allInnerTexts();
+    return texts.map((t) => t.replace(/\s+/g, ' ').trim()).filter((t) => t && !DATE_LIKE.test(t)).pop() ?? '';
+  };
+  await expect.poll(readName, { timeout: 15_000, message: 'logged-in user name should render in the banner' }).not.toBe('');
+  return readName();
 }

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../../src/fixtures/test';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TC-068  Fleet — Masquerade as a Yacht (USD account)

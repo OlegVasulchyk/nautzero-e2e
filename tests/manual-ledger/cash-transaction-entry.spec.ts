@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from '../../src/fixtures/test';
 import { ManualLedgerPage, formatAmount } from '../../src/pages/ManualLedgerPage';
 import { CashEntryWizard } from '../../src/pages/CashEntryWizard';
 import { TransactionList } from '../../src/pages/TransactionList';
@@ -25,7 +25,7 @@ import { randAmount, todayParts, uniqueText } from '../../src/fixtures/test-data
 
 for (const variant of ['Boat', 'Charter'] as const) {
   test(`Transaction (${variant})`, async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(150_000);
 
     const SUPPLIER_NAME = uniqueText(`Auto Test Supplier ${variant}`);
     const DEBIT_AMOUNT = randAmount(100, 299);
@@ -62,12 +62,12 @@ for (const variant of ['Boat', 'Charter'] as const) {
       { text: 'No', exact: true }, // Receipt — skipped
       { text: NOTE_TEXT, exact: true },
     ]);
-    await wizard.submitAndExpectSuccess();
+    await wizard.submitAndWaitDone('Debit');
 
     // Refresh so the Manual Transactions list shows the new row.
     await page.reload();
 
-    const article = transactions.articleFor(SUPPLIER_NAME, formattedAmount);
+    const article = await transactions.locate(SUPPLIER_NAME, formattedAmount);
     await transactions.expectRow(article, {
       name: SUPPLIER_NAME,
       amount: formattedAmount, // debit renders as "-<symbol>X.XX"

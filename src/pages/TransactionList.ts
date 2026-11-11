@@ -17,17 +17,50 @@ const ROW_TIMEOUT = 15_000;
 export class TransactionList {
   constructor(readonly page: Page) {}
 
+  /** The "Manual transactions" region (scopes rows away from anything else on the page). */
+  get region(): Locator {
+    return this.page.getByRole('region', { name: 'Manual transactions', exact: true });
+  }
+
+  /**
+   * Narrow the list to TODAY via the "Dates" filter (calendar → "Today, …" →
+   * Save). Needed because the list is paginated (10 rows/page, 100+ pages) and
+   * staging holds future-dated seed rows that sit ABOVE today's entries, so a
+   * fresh transaction is usually not on page 1.
+   */
+  async filterToday(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Dates' }).click();
+    await this.page.getByRole('button', { name: /^Today,/ }).click();
+    await this.page.getByRole('button', { name: 'Save', exact: true }).click();
+  }
+
+  /** The list's search box matches the Merchant/name column ONLY (not amounts). */
+  async search(name: string): Promise<void> {
+    await this.page.getByRole('searchbox', { name: 'Search' }).fill(name);
+  }
+
   /**
    * The article for the transaction matching ALL given text filters
-   * (substring match). Generic names (sub-accounts, "Main Cash Account") are
-   * reused by prior staging rows, so always filter by the (unique) amount too.
+   * (substring match) among the rows currently listed.
    */
   articleFor(...filters: string[]): Locator {
-    let article = this.page.getByRole('article');
+    let article = this.region.getByRole('article');
     for (const text of filters) {
       article = article.filter({ hasText: text });
     }
     return article.first();
+  }
+
+  /**
+   * Find the transaction this test just created: filter the list to today,
+   * search by its name, then match the (run-unique) amount — generic names
+   * like a sub-account or "Main Cash Account" are shared by many rows.
+   * Call after page.reload() (a reload resets the filters).
+   */
+  async locate(name: string, amount: string): Promise<Locator> {
+    await this.filterToday();
+    await this.search(name);
+    return this.articleFor(name, amount);
   }
 
   async expectRow(
@@ -35,9 +68,13 @@ export class TransactionList {
     row: {
       /** Account / supplier / creditor / reference shown in the row (exact). */
       name: string;
-      /** Formatted amount, e.g. "€2,134.57" (substring — debits render as "-€2,134.57"). */
+      /** Formatted amount, e.g. "€2,134.57" (substring — some rows render it as "-€2,134.57"). */
       amount: string;
-      /** Category + Subcategory cells; cash entries show "N/A" in both. */
+      /**
+       * Category + Subcategory cells. DOM-verified: transfer CREDIT rows show
+       * "N/A"/"N/A"; transfer DEBIT rows show a "Select" button and "—" (the
+       * category is picked in the row afterwards, not in the wizard).
+       */
       category?: string;
       subcategory?: string;
       /** External Account rows show "—" for the unset subcategory. */

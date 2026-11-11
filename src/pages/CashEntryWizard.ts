@@ -7,8 +7,8 @@ export type EntryKind = 'Debit' | 'Credit';
 
 /** Step headings can lag behind the click that opens them. */
 const STEP_TIMEOUT = 10_000;
-/** Submits hit the backend — success/close takes longer than a step change. */
-const SUBMIT_TIMEOUT = 15_000;
+/** Submits hit the backend, and the drawer self-closes only ~15–30s after saving. */
+const SUBMIT_TIMEOUT = 60_000;
 
 /**
  * The multi-step "Add Cash Entry" / "Add Manual Entry" wizard drawer.
@@ -30,9 +30,17 @@ export class CashEntryWizard {
     await this.page.getByRole('button', { name: 'Next', exact: true }).click();
   }
 
-  /** The wizard dialog for a given step (the dialog carries the step name as its aria-label). */
-  dialog(name: string): Locator {
-    return this.page.getByRole('dialog', { name });
+  /**
+   * The wizard dialog for a given step, found by the HEADING inside it. Do not
+   * look dialogs up by accessible name: their aria-labels differ from the
+   * headings and change between releases (heading "Debit Summary" lives in
+   * dialog "Review debit details"; "Transaction or Transfer" in
+   * "Select transaction or transfer").
+   */
+  dialog(heading: string): Locator {
+    return this.page.getByRole('dialog').filter({
+      has: this.page.getByRole('heading', { name: heading }),
+    });
   }
 
   // ── Choice screens ──────────────────────────────────────────────────────────
@@ -102,8 +110,23 @@ export class CashEntryWizard {
    */
   async fillAmount(kind: EntryKind, amount: string): Promise<void> {
     await this.expectStep(`${kind} Amount`);
-    await fillMaskedInput(this.dialog(`${kind} Amount`).locator('input'), amount);
+    const dialog = this.dialog(`${kind} Amount`);
+    await fillMaskedInput(dialog.locator('input'), amount);
+
     await this.next();
+
+    // Insufficient funds is reported inline on THIS step (after Next) and keeps
+    // the wizard here — fail with the app's own message instead of timing out
+    // on the next step's heading.
+    const alert = dialog.getByRole('alert');
+    const heading = this.page.getByRole('heading', { name: `${kind} Amount` });
+    const outcome = await Promise.race([
+      heading.waitFor({ state: 'hidden', timeout: STEP_TIMEOUT }).then(() => 'advanced' as const).catch(() => 'stuck' as const),
+      alert.waitFor({ state: 'visible', timeout: STEP_TIMEOUT }).then(() => 'rejected' as const).catch(() => 'stuck' as const),
+    ]);
+    if (outcome === 'rejected') {
+      throw new Error(`${kind} of ${amount} rejected on the Amount step: "${(await alert.innerText()).trim()}"`);
+    }
   }
 
   // ── Date / categorize / receipt / note ─────────────────────────────────────
@@ -195,25 +218,21 @@ export class CashEntryWizard {
   }
 
   /**
-   * Submit and wait for the success confirmation. `detailText` additionally
-   * checks flow-specific wording (e.g. "Your bank account has been credited").
+   * Submit and wait until the entry is actually saved. DOM-verified (Nov 2026):
+   * the button turns into "Submitting…", then EITHER a success screen appears
+   * (flows that still have one) OR — cash Transfer flows — there is no success
+   * screen at all: balances update live and the drawer closes by itself some
+   * 15–30s later. Accept whichever comes first; callers then verify the real
+   * outcome (balance delta + transaction row). Never reload before this
+   * resolves — that used to cancel the in-flight submit.
    */
-  async submitAndExpectSuccess(detailText?: string): Promise<void> {
+  async submitAndWaitDone(summaryName: 'Debit' | 'Credit' | 'Invoice'): Promise<void> {
     await this.submit();
-    await expect(this.page.getByText(/SUCCESS/).first()).toBeVisible({ timeout: SUBMIT_TIMEOUT });
-    if (detailText) {
-      await expect(this.page.getByText(detailText, { exact: false })).toBeVisible();
-    }
-  }
-
-  /**
-   * Submit and wait for the wizard to close instead of a success screen —
-   * for the Credit/Transfer flows whose success wording is unconfirmed.
-   * Waiting here (rather than reloading straight away, as before) removes the
-   * race where the reload cancelled an in-flight submit.
-   */
-  async submitAndExpectClosed(summaryName: 'Debit' | 'Credit' | 'Invoice'): Promise<void> {
-    await this.submit();
-    await expect(this.page.getByRole('heading', { name: `${summaryName} Summary` })).toBeHidden({ timeout: SUBMIT_TIMEOUT });
+    const success = this.page.getByText(/SUCCESS/i).first(); // uppercase is CSS-only
+    const summary = this.page.getByRole('heading', { name: `${summaryName} Summary` });
+    await expect(async () => {
+      const done = (await success.isVisible()) || (await summary.isHidden());
+      expect(done, 'submit should finish (success screen or drawer closed)').toBe(true);
+    }).toPass({ timeout: SUBMIT_TIMEOUT });
   }
 }

@@ -1,4 +1,4 @@
-import { test as setup } from '@playwright/test';
+import { test as setup } from '../../src/fixtures/test';
 import { login } from '../../src/helpers/auth.helper';
 import { USERS, USER_ROLES, authFile } from '../../src/fixtures/users';
 

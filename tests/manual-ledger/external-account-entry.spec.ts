@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../src/fixtures/test';
 import { ManualLedgerPage, formatAmount } from '../../src/pages/ManualLedgerPage';
 import { CashEntryWizard } from '../../src/pages/CashEntryWizard';
 import { TransactionList } from '../../src/pages/TransactionList';
@@ -20,7 +20,7 @@ import { randAmount, todayParts, uniqueText } from '../../src/fixtures/test-data
 
 for (const variant of ['Boat', 'Charter'] as const) {
   test(`Credit (${variant})`, async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(150_000);
 
     const CREDIT_AMOUNT = randAmount(1000, 1999);
     const CREDITOR_NAME = uniqueText(`Auto test ${variant}`);
@@ -47,13 +47,13 @@ for (const variant of ['Boat', 'Charter'] as const) {
 
     // The Charter isn't shown on the summary screen, so no assertion for it here.
     await wizard.expectSummary('Credit', [formattedAmount, CREDITOR_NAME, date.formatted]);
-    await wizard.submitAndExpectSuccess('Your bank account has been credited');
+    await wizard.submitAndWaitDone('Credit');
 
     // External Account balance increased by the credited amount.
     await page.reload();
     await ledger.expectExternalBalance(balanceBefore + Number(CREDIT_AMOUNT));
 
-    const article = transactions.articleFor(CREDITOR_NAME, formattedAmount);
+    const article = await transactions.locate(CREDITOR_NAME, formattedAmount);
     await transactions.expectRow(article, {
       name: CREDITOR_NAME,
       amount: formattedAmount,
@@ -77,7 +77,7 @@ for (const variant of ['Boat', 'Charter'] as const) {
 
 for (const variant of ['Boat', 'Charter'] as const) {
   test(`Paid Invoice${variant === 'Charter' ? ' (Charter)' : ''}`, async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(150_000);
 
     const INVOICE_AMOUNT = randAmount(500, 999);
     const INVOICE_REFERENCE = uniqueText(`Auto Test Paid Invoice ${variant}`);
@@ -116,14 +116,14 @@ for (const variant of ['Boat', 'Charter'] as const) {
       { text: 'No', exact: true }, // Copy Of Invoice — skipped
       NOTE_TEXT,
     ]);
-    await wizard.submitAndExpectSuccess();
+    await wizard.submitAndWaitDone('Invoice');
 
     // External Account balance decreased by the invoice amount.
     await page.reload();
     await ledger.expectExternalBalance(balanceBefore - Number(INVOICE_AMOUNT));
 
     // Paid Invoice is a debit — the row shows "-<symbol>X.XX".
-    const article = transactions.articleFor(INVOICE_REFERENCE, formattedAmount);
+    const article = await transactions.locate(INVOICE_REFERENCE, formattedAmount);
     await transactions.expectRow(article, {
       name: INVOICE_REFERENCE,
       amount: formattedAmount,

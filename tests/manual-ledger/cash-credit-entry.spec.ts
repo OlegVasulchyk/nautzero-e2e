@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from '../../src/fixtures/test';
 import { ManualLedgerPage, formatAmount } from '../../src/pages/ManualLedgerPage';
 import { CashEntryWizard } from '../../src/pages/CashEntryWizard';
 import { TransactionList } from '../../src/pages/TransactionList';
@@ -29,7 +29,7 @@ import { randAmount, todayParts } from '../../src/fixtures/test-data';
 const CASH_ACCOUNT = 'Main Cash Account';
 
 test('Credit to Main Cash Account (Boat)', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
 
   const CREDIT_AMOUNT = randAmount(2000, 2999);
   const date = todayParts();
@@ -53,7 +53,7 @@ test('Credit to Main Cash Account (Boat)', async ({ page }) => {
   await wizard.setDate(date);
 
   await wizard.expectSummary('Credit', [CASH_ACCOUNT, formattedAmount, date.formatted]);
-  await wizard.submitAndExpectClosed('Credit');
+  await wizard.submitAndWaitDone('Credit');
 
   // Total and Remaining Balance increased by the credited amount.
   await page.reload();
@@ -62,7 +62,7 @@ test('Credit to Main Cash Account (Boat)', async ({ page }) => {
     remaining: balancesBefore.remaining + Number(CREDIT_AMOUNT),
   });
 
-  const article = transactions.articleFor(CASH_ACCOUNT, formattedAmount);
+  const article = await transactions.locate(CASH_ACCOUNT, formattedAmount);
   await transactions.expectRow(article, {
     name: CASH_ACCOUNT,
     amount: formattedAmount,
@@ -80,7 +80,7 @@ test('Credit to Main Cash Account (Boat)', async ({ page }) => {
 });
 
 test('Credit to a sub-account', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
 
   const CREDIT_AMOUNT = randAmount(2000, 2999);
   const date = todayParts();
@@ -112,13 +112,13 @@ test('Credit to a sub-account', async ({ page }) => {
     formattedAmount,
     date.formatted,
   ]);
-  await wizard.submitAndExpectClosed('Credit');
+  await wizard.submitAndWaitDone('Credit');
 
   // The sub-account's own Department balance increased by the credited amount.
   await page.reload();
   await ledger.expectDepartmentBalance(subAccountName, departmentBalanceBefore + Number(CREDIT_AMOUNT));
 
-  const article = transactions.articleFor(subAccountName, formattedAmount);
+  const article = await transactions.locate(subAccountName, formattedAmount);
   await transactions.expectRow(article, {
     name: subAccountName,
     amount: formattedAmount,
@@ -136,7 +136,7 @@ test('Credit to a sub-account', async ({ page }) => {
 });
 
 test('Credit to Main Cash Account (Charter)', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
 
   const CREDIT_AMOUNT = randAmount(2000, 2999);
   const date = todayParts();
@@ -162,7 +162,7 @@ test('Credit to Main Cash Account (Charter)', async ({ page }) => {
 
   // The Charter isn't shown on the summary screen, so no assertion for it here.
   await wizard.expectSummary('Credit', [CASH_ACCOUNT, formattedAmount, date.formatted]);
-  await wizard.submitAndExpectClosed('Credit');
+  await wizard.submitAndWaitDone('Credit');
 
   await page.reload();
   await ledger.expectCashBalances({
@@ -170,7 +170,7 @@ test('Credit to Main Cash Account (Charter)', async ({ page }) => {
     remaining: balancesBefore.remaining + Number(CREDIT_AMOUNT),
   });
 
-  const article = transactions.articleFor(CASH_ACCOUNT, formattedAmount);
+  const article = await transactions.locate(CASH_ACCOUNT, formattedAmount);
   await transactions.expectRow(article, {
     name: CASH_ACCOUNT,
     amount: formattedAmount,

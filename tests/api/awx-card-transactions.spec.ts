@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../src/fixtures/test';
 import { AirwallexClient } from '../../src/helpers/airwallex.helper';
 
 // ─────────────────────────────────────────────────────────────────────────────

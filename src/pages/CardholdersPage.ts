@@ -1,6 +1,6 @@
 import { expect, type Page, type Locator } from '@playwright/test';
 import { confirmDialog, pickRandomListboxOption } from '../helpers/ui.helper';
-import { SHIPPING, type CardholderData } from '../fixtures/test-data';
+import { SHIPPING, randEmail, type CardholderData } from '../fixtures/test-data';
 
 export type CardState = 'active' | 'frozen';
 
@@ -109,6 +109,15 @@ export class CardholdersPage {
     const state = await this.expandActiveCardholder();
     await this.ensureExpandedCardActive(state);
     await this.page.getByRole('button', { name: 'Edit' }).first().click();
+
+    // Some staging cardholders carry an invalid stored email ("name@gmail"),
+    // which makes the form fail validation ("Enter a valid email address.") and
+    // blocks Save for ANY edit. Repair it so balance/limit tests test what they mean to.
+    const email = this.page.getByRole('textbox', { name: 'Email:' });
+    await expect(email).toBeVisible();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(await email.inputValue())) {
+      await email.fill(randEmail());
+    }
   }
 
   /**

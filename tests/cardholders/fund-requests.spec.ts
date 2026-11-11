@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, relaxNavigation, type Page } from '../../src/fixtures/test';
 import { randInt } from '../../src/fixtures/test-data';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ test.describe('TC-073 | Cardholder Fund Requests — request and approve', () =>
     let cardholderName!: string;
     let amount!: number;
     try {
-      const chPage = await cardholderContext.newPage();
+      const chPage = relaxNavigation(await cardholderContext.newPage());
 
       await chPage.goto('/dashboard');
       const requestButton = chPage.getByRole('button', { name: 'Request Additional Funds' });
@@ -103,7 +103,7 @@ test.describe('TC-073 | Cardholder Fund Requests — request and approve', () =>
     // ═══ Step 2 — Yacht Admin reviews and approves ═════════════════════════
     const adminContext = await browser.newContext({ storageState: '.auth/yacht-admin.json' });
     try {
-      const admPage = await adminContext.newPage();
+      const admPage = relaxNavigation(await adminContext.newPage());
 
       await admPage.goto('/cardholders');
       await expect(admPage.getByRole('heading', { name: 'Cardholders' })).toBeVisible();

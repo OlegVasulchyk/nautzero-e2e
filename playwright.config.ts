@@ -12,7 +12,8 @@ const ROLES = [
   'cardholder-physical',
   'cardholder-virtual',
   'yacht-manager-admin',
-  'yacht-manager-admin-eur',
+  // 'yacht-manager-admin-eur' still exists in users.ts, but no project uses it:
+  // boat currency is per-boat now, and that account's login is SCA-gated.
 ] as const;
 
 type Role = (typeof ROLES)[number];
@@ -121,20 +122,15 @@ export default defineConfig({
       dependencies: ['setup:yacht-manager-admin'],
     },
 
-    // ── Fleet + Settings (Create Boat / Create Admin), once per account ──────
+    // ── Fleet + Settings (Create Boat / Masquerade / Create Admin) ───────────
+    // One account: boat currency is a per-boat form field now, and a single
+    // Fleet holds USD/EUR/GBP boats (no separate USD/EUR accounts — DOM-verified
+    // Nov 2026). The USD/EUR-titled tests all run here.
     {
-      name: 'yacht-manager-admin-usd',
+      name: 'yacht-manager-admin-fleet',
       testMatch: ['**/fleet/*.spec.ts', '**/settings/*.spec.ts'],
-      grep: /USD/,
       use: asRole('yacht-manager-admin'),
       dependencies: ['setup:yacht-manager-admin'],
-    },
-    {
-      name: 'yacht-manager-admin-eur',
-      testMatch: ['**/fleet/*.spec.ts', '**/settings/*.spec.ts'],
-      grep: /EUR/,
-      use: asRole('yacht-manager-admin-eur'),
-      dependencies: ['setup:yacht-manager-admin-eur'],
     },
 
     // ── Airwallex Issuing simulation API — no browser, no NautZero login ─────

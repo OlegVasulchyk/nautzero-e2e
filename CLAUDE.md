@@ -17,21 +17,36 @@ Page Object Model.
 - `src/fixtures/test-data.ts` — THE single source of random test data (names, phones,
   emails, amounts, DOB, `todayParts()`, `uniqueText()`); never re-declare generators in specs
 - `src/fixtures/users.ts` — users/credentials (lazy env reads; `USER_ROLES`, `authFile()`)
+- `src/fixtures/test.ts` — THE suite's `test`/`expect`. Every spec imports from here, not
+  from `@playwright/test`: it makes `goto`/`reload`/`waitForURL` wait for DOM-ready, because
+  staging intermittently never fires `load` (that alone failed 13 tests in one run)
+- `scripts/dom-audit.mjs` — read-only dump of the live accessibility tree for every screen
+  and drawer the tests touch. Run it BEFORE writing or changing locators
 - `playwright.config.ts` — one project per role, each with its own `storageState` (`.auth/*.json`)
 - Credentials & OTP live in `.env` (git-ignored). Static staging OTP: `739712`
 
-## KNOWN BLOCKER — staging login (Nov 2026)
-Staging login is gated by an Airwallex hosted-SCA iframe ("Verify your identity"):
-the passcode step accepts the static OTP, but the next step sends a REAL SMS code to
-the account's real phone and rejects the static OTP. Attempts are limited — NEVER
-brute-force codes there. Until SCA is disabled for the staging test accounts, the
-`setup:*` and `auth` projects fail (auth.helper throws a descriptive error), and the
-suite runs on the saved `.auth/*.json` sessions: `npx playwright test --no-deps`
-with the non-auth projects.
+## The app drifts — verify against the DOM, not against comments
+Staging changes without notice; comments and this file describe the app as it WAS. Before
+touching a flow, run it and check `node scripts/dom-audit.mjs <outDir>`. The DOM-verified
+facts (wizard step order, list filters, row contents per flow, form fields) live in
+`.claude/skills/playwright-author/SKILL.md` — read it first, and update it when you find
+a difference. Drift found in Nov 2026: Transfer wizard lost "Categorize Debit" and its
+success screen; dialog aria-labels ≠ headings; boat form gained Currency + Billing
+Frequency; admin creation gained two extra steps; reset-password lost its OTP step.
+
+## Login & SCA
+Some staging accounts are gated by an Airwallex hosted-SCA iframe ("Verify your identity"):
+its passcode step accepts the static OTP, but the next step sends a REAL SMS and rejects
+the static OTP, with limited attempts — NEVER brute-force it. `auth.helper` detects the
+iframe and fails with a descriptive error. The accounts in `.env` are no-SCA test accounts;
+if SCA shows up on one, stop and ask for a no-SCA account.
 
 ## Roles / projects
-`yacht-admin`, `cardholder`, `yacht-admin-card` (admin who owns a card),
-`cardholder-physical`, `cardholder-virtual`, `yacht-manager-admin`.
+`yacht-admin`, `cardholder`, `yacht-admin-card` (admin who owns a card — currently the same
+account as `yacht-admin`), `cardholder-physical`, `cardholder-virtual`,
+`yacht-manager-admin`. Fleet + Settings specs run in one project
+(`yacht-manager-admin-fleet`): boat currency is a per-boat form field and one Fleet holds
+USD/EUR/GBP boats, so there are no separate USD/EUR accounts any more.
 
 Each test project depends on its own `setup:<role>` project. `auth.setup.ts` tags each
 login with `@setup-<role>`, and config `grep`s that tag (anchored with `$`) so running

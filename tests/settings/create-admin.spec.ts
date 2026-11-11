@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../../src/fixtures/test';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TC-070  Settings/Admins — Create New Admin (USD account)
@@ -56,12 +56,21 @@ async function createAdmin(page: Page, data: AdminData): Promise<void> {
   await dialog.getByPlaceholder('Last name').fill(data.lastName);
 
   // Masked input — .fill() bypasses the keystroke handlers the mask needs to
-  // format progressively. Positional nth(2): the phone field exposes no
-  // label/placeholder of its own in this dialog.
-  await fillMaskedInput(dialog.getByRole('textbox').nth(2), data.phone);
+  // format progressively. (DOM-verified: the field is labelled "Mobile Number".)
+  await fillMaskedInput(dialog.getByRole('textbox', { name: 'Mobile Number' }), data.phone);
 
   await dialog.getByPlaceholder('Email address').fill(data.email);
 
+  await dialog.getByRole('button', { name: 'Submit' }).click();
+
+  // Step 2 (DOM-verified Nov 2026): a notification-preference screen with an
+  // Enabled/Disabled switch and a second Submit. Keep the default and submit.
+  await expect(dialog.getByText('Would you like to enable this administrator to receive messages', { exact: false })).toBeVisible({ timeout: 10_000 });
+  await dialog.getByRole('button', { name: 'Submit' }).click();
+
+  // Step 3 (DOM-verified Nov 2026): "Require Secondary Approval?" — another
+  // Enabled/Disabled switch and the final Submit. Keep the default.
+  await expect(dialog.getByRole('heading', { name: 'Require Secondary Approval?' })).toBeVisible({ timeout: 10_000 });
   await dialog.getByRole('button', { name: 'Submit' }).click();
 
   // ── Success ──────────────────────────────────────────────────────────────

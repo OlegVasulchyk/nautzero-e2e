@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../src/fixtures/test';
 import { CardholdersPage } from '../../src/pages/CardholdersPage';
 import { makeCardholder, randAmount, randWarcraftId, SHIPPING } from '../../src/fixtures/test-data';
 

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../src/fixtures/test';
 import { CardholdersPage } from '../../src/pages/CardholdersPage';
 import { fillMaskedInput } from '../../src/helpers/ui.helper';
 import { randInt } from '../../src/fixtures/test-data';
@@ -166,6 +166,14 @@ test.describe('TC-043 | Cardholder balance exceeds remaining balance', () => {
     const cardholders = new CardholdersPage(page);
     await cardholders.openFirstCardholderEdit();
     const remaining = await cardholders.readRemainingBalance();
+
+    // The remaining-balance error can only be isolated while the account's
+    // Remaining Balance is below the $100,000 per-cardholder cap; above it, any
+    // value exceeding "remaining" trips the $100,000 rule (TC-042) first.
+    test.skip(
+      remaining >= 100_000,
+      `Remaining Balance is $${remaining.toLocaleString('en-US')} — above the $100,000 cap, so this rule can't be reached on this account`
+    );
 
     const current = parseFloat((await cardholders.balanceInput.inputValue()).replace(/[$,]/g, '')) || 0;
 
